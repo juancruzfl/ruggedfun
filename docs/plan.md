@@ -269,14 +269,16 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 - The quick-buy modal became a quick-trade modal (`useQuickTrade.open(tokenId, "buy" | "sell")`).
 
 ### 6.9 Position alerts
-- Each time a position you hold crosses a new **+5% step** over your average cost (+5%, +10%, +15%, …),
-  you get one alert: a card in the top-right (Sell / View, auto-hides after 8s, pauses on hover), a soft
-  ding (respects mute), and an entry under the 🔔 bell with an unread count.
-- A big jump fires one alert for the highest step reached; at most one alert per token per 10s.
-  Dipping and recovering doesn't repeat an alert. Losses never alert.
+- Each time a position you hold crosses a new **5% step** over your average cost, up (+5%, +10%, …) or
+  down (−5%, −10%, …), you get one alert: a card in the top-right (green for gains, red for drops; Sell /
+  View, auto-hides after 8s, pauses on hover), a ding (rising or falling; respects mute), and an entry under
+  the 🔔 bell with an unread count.
+- Only new highs and new lows alert, so wobbling over a level doesn't repeat it. A big move fires one
+  alert for the furthest step; at most one alert per token per 10s. Rugged tokens don't alert (the
+  full-screen rug moment covers them). Values use what the position would actually sell for.
 - The baseline is set when you buy, or when you open the site already holding, so old milestones aren't
   replayed. Buying more or selling part resets it to the new average cost.
-- Bell settings (remembered per browser): position alerts on/off, and desktop notifications (asks the
+- Bell settings (remembered per browser): gain alerts, drop alerts, and desktop notifications (asks the
   browser for permission; only used when the tab is in the background).
 - Alerts only run while the site is open in a tab; there's no push when it's closed.
 - Trigger logic: `evaluateAlert` in `packages/shared/src/alerts.ts` (unit tested).

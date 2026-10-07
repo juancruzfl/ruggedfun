@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatSol, timeAgo } from "@/lib/format";
-import { useNotifications } from "@/lib/notifications";
+import { signedSol, useNotifications } from "@/lib/notifications";
 import { TokenAvatar } from "./TokenBits";
 
 function Toggle({
@@ -40,7 +40,7 @@ function Toggle({
 
 /** Bell with unread count, recent position alerts, and alert settings. */
 export function NotificationBell() {
-  const { history, enabled, desktop, setEnabled, setDesktop, markAllRead } = useNotifications();
+  const { history, enabled, drops, desktop, setEnabled, setDrops, setDesktop, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
   const [desktopNote, setDesktopNote] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -97,10 +97,16 @@ export function NotificationBell() {
             <h2 className="font-semibold">Notifications</h2>
             <div className="mt-2">
               <Toggle
-                label="Position alerts"
+                label="Gain alerts"
                 hint="Every +5% a position you hold climbs"
                 checked={enabled}
                 onChange={setEnabled}
+              />
+              <Toggle
+                label="Drop alerts"
+                hint="Every −5% a position you hold falls"
+                checked={drops}
+                onChange={setDrops}
               />
               <Toggle
                 label="Desktop notifications"
@@ -113,7 +119,9 @@ export function NotificationBell() {
           </div>
 
           {history.length === 0 ? (
-            <p className="p-4 text-sm text-muted">No alerts yet. Hold a token and we&apos;ll ping you every +5%.</p>
+            <p className="p-4 text-sm text-muted">
+              No alerts yet. Hold a token and we&apos;ll ping you every 5% it moves.
+            </p>
           ) : (
             <ul className="max-h-80 overflow-y-auto py-1">
               {history.map((a) => (
@@ -126,9 +134,13 @@ export function NotificationBell() {
                     <TokenAvatar src={a.imageUrl} alt="" size={28} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm">
-                        ${a.ticker} up <span className="font-semibold text-pump">+{a.levelPct}%</span>
+                        ${a.ticker} {a.levelPct >= 0 ? "up" : "down"}{" "}
+                        <span className={`font-semibold ${a.levelPct >= 0 ? "text-pump" : "text-rug"}`}>
+                          {a.levelPct >= 0 ? "+" : "−"}
+                          {Math.abs(a.levelPct)}%
+                        </span>
                       </div>
-                      <div className="font-mono text-xs text-muted">+{formatSol(a.pnlSol)} SOL</div>
+                      <div className="font-mono text-xs text-muted">{signedSol(a.pnlSol, formatSol)} SOL</div>
                     </div>
                     <span className="text-xs text-muted">{timeAgo(a.at)}</span>
                   </Link>

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatSol } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
 import { positionValue } from "@/lib/positionValue";
-import { useNotifications, type PositionAlert } from "@/lib/notifications";
+import { alertHeadline, signedSol, useNotifications, type PositionAlert } from "@/lib/notifications";
 import { useQuickTrade } from "@/lib/quickTrade";
 import { sounds } from "@/lib/sound";
 import { useSession } from "./SessionProvider";
@@ -17,8 +17,8 @@ const VISIBLE_MS = 8000;
 function showDesktopNotification(alert: PositionAlert) {
   if (!("Notification" in window) || Notification.permission !== "granted" || !document.hidden) return;
   try {
-    const n = new Notification(`$${alert.ticker} is up ${alert.levelPct}% 📈`, {
-      body: `+${formatSol(alert.pnlSol)} SOL · worth ${formatSol(alert.valueSol)} SOL`,
+    const n = new Notification(alertHeadline(alert), {
+      body: `${signedSol(alert.pnlSol, formatSol)} SOL · worth ${formatSol(alert.valueSol)} SOL`,
       icon: alert.imageUrl,
       tag: `position-${alert.tokenId}`,
     });
@@ -51,14 +51,16 @@ function usePositionAlertWatcher() {
       for (const p of positions.current) {
         held.add(p.tokenId);
         const token = tokens[p.tokenId];
-        if (!token || token.endedAt !== null || p.costBasisSol <= 0) continue;
+        // Rugs get the full-screen moment instead of a drop alert.
+        if (!token || token.endedAt !== null || token.status === "rugged" || p.costBasisSol <= 0) continue;
         const valueSol = positionValue(p.tokenAmount, token, p.lastPrice);
         const result = evaluateAlert(states.get(p.tokenId), p.costBasisSol, valueSol / p.costBasisSol - 1, now);
         states.set(p.tokenId, result.state);
         if (result.fire === null) continue;
 
         const notifications = useNotifications.getState();
-        if (!notifications.enabled) continue;
+        const rising = result.fire > 0;
+        if (rising ? !notifications.enabled : !notifications.drops) continue;
         const alert = notifications.push({
           tokenId: p.tokenId,
           ticker: token.ticker,
@@ -69,7 +71,8 @@ function usePositionAlertWatcher() {
           valueSol,
           at: now,
         });
-        sounds.alert();
+        if (rising) sounds.alert();
+        else sounds.alertDown();
         if (notifications.desktop) showDesktopNotification(alert);
       }
       // Closed positions start fresh if they're reopened.
@@ -85,6 +88,7 @@ function AlertCard({ alert }: { alert: PositionAlert }) {
   const hide = useNotifications((s) => s.hide);
   const openTrade = useQuickTrade((s) => s.open);
   const [hovered, setHovered] = useState(false);
+  const up = alert.levelPct >= 0;
 
   useEffect(() => {
     if (hovered) return;
@@ -97,20 +101,28 @@ function AlertCard({ alert }: { alert: PositionAlert }) {
       role="status"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="pointer-events-auto flex gap-3 rounded-xl border border-pump/40 bg-panel p-3 shadow-2xl shadow-black/60"
+      className={`pointer-events-auto flex gap-3 rounded-xl border bg-panel p-3 shadow-2xl shadow-black/60 ${
+        up ? "border-pump/40" : "border-rug/50"
+      }`}
     >
       <TokenAvatar src={alert.imageUrl} alt="" size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="truncate text-sm font-semibold">
-            ${alert.ticker} is up <span className="text-pump">+{alert.levelPct}%</span> 📈
+          <p className={`truncate text-sm font-semibold ${up ? "" : "text-text"}`}>
+            ${alert.ticker} is {up ? "up" : "down"}{" "}
+            <span className={up ? "text-pump" : "text-rug"}>
+              {up ? "+" : "−"}
+              {Math.abs(alert.levelPct)}%
+            </span>{" "}
+            {up ? "📈" : "📉"}
           </p>
           <button onClick={() => hide(alert.id)} aria-label="Dismiss" className="-mt-1 text-muted hover:text-text">
             ×
           </button>
         </div>
         <p className="font-mono text-xs text-muted">
-          <span className="text-pump">+{formatSol(alert.pnlSol)} SOL</span> · worth {formatSol(alert.valueSol)} SOL
+          <span className={alert.pnlSol >= 0 ? "text-pump" : "text-rug"}>{signedSol(alert.pnlSol, formatSol)} SOL</span>{" "}
+          · worth {formatSol(alert.valueSol)} SOL
         </p>
         <div className="mt-2 flex gap-2">
           <button

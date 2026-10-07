@@ -48,7 +48,15 @@ function audio(): AudioContext | null {
 /** One note: frequency glide from `from` to `to` Hz, starting `at` seconds from now. */
 function note(
   ac: AudioContext,
-  { from, to = from, at = 0, length, type = "sine", volume = 0.15, vibrato = 0 }: {
+  {
+    from,
+    to = from,
+    at = 0,
+    length,
+    type = "sine",
+    volume = 0.15,
+    vibrato = 0,
+  }: {
     from: number;
     to?: number;
     at?: number;
@@ -105,11 +113,20 @@ export const sounds = {
     note(ac, { from: 988, length: 0.18, type: "triangle", volume: 0.08 });
     note(ac, { from: 1319, at: 0.12, length: 0.3, type: "triangle", volume: 0.08 });
   },
+  /** The alert ding played downward, for position drops. */
+  alertDown() {
+    const ac = audio();
+    if (!ac) return;
+    note(ac, { from: 784, length: 0.18, type: "triangle", volume: 0.08 });
+    note(ac, { from: 587, at: 0.12, length: 0.3, type: "triangle", volume: 0.08 });
+  },
   /** Rising arpeggio and a sparkle. */
   moon() {
     const ac = audio();
     if (!ac) return;
-    [523, 659, 784, 1047].forEach((f, i) => note(ac, { from: f, at: i * 0.09, length: 0.25, type: "triangle", volume: 0.12 }));
+    [523, 659, 784, 1047].forEach((f, i) =>
+      note(ac, { from: f, at: i * 0.09, length: 0.25, type: "triangle", volume: 0.12 }),
+    );
     note(ac, { from: 2093, to: 3136, at: 0.4, length: 0.3, volume: 0.05 });
   },
 };

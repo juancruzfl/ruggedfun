@@ -8,7 +8,7 @@ export interface PositionAlert {
   ticker: string;
   name: string;
   imageUrl: string;
-  /** e.g. 15 for "+15%". */
+  /** Signed: 15 for "+15%", -10 for "−10%". */
   levelPct: number;
   pnlSol: number;
   valueSol: number;
@@ -20,20 +20,24 @@ const MAX_HISTORY = 30;
 const SETTINGS_KEY = "rf:alerts";
 
 interface Settings {
-  /** In-app position alerts. */
+  /** Alerts when a position climbs (kept as `enabled` so earlier saved settings still apply). */
   enabled: boolean;
+  /** Alerts when a position falls. */
+  drops: boolean;
   /** Also show a system notification when the tab is in the background. */
   desktop: boolean;
 }
 
+const DEFAULT_SETTINGS: Settings = { enabled: true, drops: true, desktop: false };
+
 function readSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { enabled: true, desktop: false, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
   } catch {
     // Storage blocked or corrupt: fall back to defaults.
   }
-  return { enabled: true, desktop: false };
+  return DEFAULT_SETTINGS;
 }
 
 function writeSettings(settings: Settings) {
@@ -42,6 +46,20 @@ function writeSettings(settings: Settings) {
   } catch {
     // The setting just won't stick.
   }
+}
+
+const pickSettings = ({ enabled, drops, desktop }: Settings): Settings => ({ enabled, drops, desktop });
+
+/** "$FROG is up +15% 📈" / "$FROG is down −10% 📉" */
+export function alertHeadline(alert: Pick<PositionAlert, "ticker" | "levelPct">): string {
+  return alert.levelPct >= 0
+    ? `$${alert.ticker} is up +${alert.levelPct}% 📈`
+    : `$${alert.ticker} is down −${Math.abs(alert.levelPct)}% 📉`;
+}
+
+/** Signed SOL with a real minus sign: "+0.150" / "−0.100". */
+export function signedSol(sol: number, format: (n: number) => string): string {
+  return `${sol >= 0 ? "+" : "−"}${format(Math.abs(sol))}`;
 }
 
 interface NotificationState extends Settings {
@@ -55,12 +73,12 @@ interface NotificationState extends Settings {
   hide(id: string): void;
   markAllRead(): void;
   setEnabled(enabled: boolean): void;
+  setDrops(drops: boolean): void;
   setDesktop(desktop: boolean): void;
 }
 
 export const useNotifications = create<NotificationState>((set, get) => ({
-  enabled: true,
-  desktop: false,
+  ...DEFAULT_SETTINGS,
   loaded: false,
   history: [],
   visible: [],
@@ -74,10 +92,14 @@ export const useNotifications = create<NotificationState>((set, get) => ({
   markAllRead: () => set((s) => ({ history: s.history.map((a) => (a.read ? a : { ...a, read: true })) })),
   setEnabled: (enabled) => {
     set({ enabled });
-    writeSettings({ enabled, desktop: get().desktop });
+    writeSettings({ ...pickSettings(get()), enabled });
+  },
+  setDrops: (drops) => {
+    set({ drops });
+    writeSettings({ ...pickSettings(get()), drops });
   },
   setDesktop: (desktop) => {
     set({ desktop });
-    writeSettings({ enabled: get().enabled, desktop });
+    writeSettings({ ...pickSettings(get()), desktop });
   },
 }));
