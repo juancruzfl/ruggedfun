@@ -1,6 +1,6 @@
 "use client";
 
-import { STARTING_SOL, USERNAME_MAX, validateUsername, type Me } from "@ruggedfun/shared";
+import { randomUsername, STARTING_SOL, USERNAME_MAX, validateUsername, type Me } from "@ruggedfun/shared";
 import { useState, type FormEvent } from "react";
 import { useSession } from "./SessionProvider";
 import { useToast } from "./Toaster";
@@ -91,9 +91,21 @@ export function OnboardingModal() {
           <span className="font-mono text-xs text-muted">
             {trimmed.length}/{USERNAME_MAX}
           </span>
+          <button
+            type="button"
+            onClick={() => {
+              setUsername(randomUsername());
+              setServerError(null);
+            }}
+            title="Random name"
+            aria-label="Generate a random name"
+            className="-mr-1 ml-2 rounded-md px-1.5 py-1 text-base transition hover:bg-panel-2"
+          >
+            🎲
+          </button>
         </div>
         <p id="username-hint" className={`mt-1.5 min-h-5 text-xs ${error ? "text-rug" : "text-muted"}`}>
-          {error ?? "Letters, numbers and _"}
+          {error ?? "Letters, numbers and _ · or roll a random one 🎲"}
         </p>
 
         <button

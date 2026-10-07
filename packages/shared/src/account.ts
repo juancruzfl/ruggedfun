@@ -25,3 +25,24 @@ export interface Me {
   wallet: { address: string; solBalance: number };
   positions: PositionSummary[];
 }
+
+const NAME_ADJECTIVES = [
+  "Based", "Sleepy", "Lucky", "Salty", "Turbo", "Giga", "Smol", "Chill", "Spicy", "Shiny",
+  "Brave", "Sneaky", "Wild", "Comfy", "Frosty", "Cosmic", "Mega", "Zesty", "Fuzzy", "Hyper",
+];
+const NAME_NOUNS = [
+  "Ape", "Frog", "Whale", "Degen", "Pepe", "Shiba", "Cat", "Hodler", "Goblin", "Otter",
+  "Bull", "Bear", "Chad", "Fren", "Gnome", "Llama", "Panda", "Moose", "Crab", "Sloth",
+];
+
+/**
+ * A random valid username like "SneakyOtter42" (at most 15 characters). Re-rolls until the name
+ * passes validateUsername, since two harmless words can join into a blocked one ("Hyper"+"Ape").
+ */
+export function randomUsername(random: () => number = Math.random): string {
+  const pick = (items: string[]) => items[Math.floor(random() * items.length)]!;
+  for (;;) {
+    const name = `${pick(NAME_ADJECTIVES)}${pick(NAME_NOUNS)}${10 + Math.floor(random() * 990)}`;
+    if (validateUsername(name) === null) return name;
+  }
+}

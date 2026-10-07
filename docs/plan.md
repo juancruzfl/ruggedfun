@@ -132,6 +132,10 @@ config so they're easy to tune.
    - The layout reads the session on the server, so the page renders signed-in with no loading flash
 4. Modal closes and a short "Wallet created — 10 SOL loaded" toast appears
 5. Returning users are recognized by the cookie. If the cookie is lost, the account is gone. That's acceptable for v1.
+6. The username field has a 🎲 button that fills in a random valid name (`randomUsername` in `packages/shared`).
+7. **Start a new account** (wallet menu) signs the browser out and reopens the signup prompt. The old account
+   isn't deleted: its trades and leaderboard history stay, it just can't be signed back into. There's no
+   self-service deletion; removal requests go through the contact link (one SQL `delete` in Railway's dashboard).
 
 ### 4.2 Optional wallet features
 - "Get more SOL" faucet: refill to 10 SOL if balance < 0.1 SOL, max once per hour (keeps broke users playing)
