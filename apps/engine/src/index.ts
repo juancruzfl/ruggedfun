@@ -1,4 +1,4 @@
-import { createDb } from "@ruggedfun/db";
+import { createDb, migrateDb } from "@ruggedfun/db";
 import { env } from "./env";
 import { BotFlow } from "./bots";
 import { Market } from "./market";
@@ -14,9 +14,13 @@ const BOOTSTRAP_MAX_AGE_MS = 30 * 60_000;
 const log = (...args: unknown[]) => console.log(new Date().toISOString(), ...args);
 
 async function main() {
+  // The engine is the one long-running process, so it owns schema migrations.
+  await migrateDb(env.databaseUrl);
+  log("migrations up to date");
+
   const { db, client } = createDb(env.databaseUrl);
   const store = new PgStore(db, client);
-  const realtime = createRealtimeServer(env.webOrigin, env.engineSecret);
+  const realtime = createRealtimeServer(env.webOrigins, env.engineSecret);
   const market = new Market(store, realtime.events, { bots: new BotFlow(env.botTradesPerSecond) });
   realtime.attach(market, new Trading(market, db));
 

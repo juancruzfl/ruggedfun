@@ -19,6 +19,13 @@ export function createRateLimiter(limit: number, windowMs: number) {
   };
 }
 
+/**
+ * The client's IP as seen by the hosting proxy. Prefer X-Real-IP (set by the proxy), then the
+ * *last* X-Forwarded-For entry (appended by the proxy). The first entry is whatever the client
+ * sent, so trusting it would let anyone dodge rate limits by faking the header.
+ */
 export function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+  return req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "local";
 }

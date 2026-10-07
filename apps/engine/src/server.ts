@@ -40,7 +40,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
  * HTTP + Socket.io server. Create it first, build the Market with `events`, then `attach`
  * the market and trading. `/internal/*` is for the web app only and needs the shared secret.
  */
-export function createRealtimeServer(webOrigin: string, engineSecret: string) {
+export function createRealtimeServer(webOrigins: string[], engineSecret: string) {
   let market: Market | null = null;
   let trading: Trading | null = null;
 
@@ -74,7 +74,7 @@ export function createRealtimeServer(webOrigin: string, engineSecret: string) {
   });
 
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-    cors: { origin: webOrigin },
+    cors: { origin: webOrigins },
   });
 
   const events: MarketEvents = {

@@ -105,7 +105,17 @@ export function OnboardingModal() {
         </button>
 
         <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
-          Play money only. Your account lives in this browser: clear your cookies and it&apos;s gone.
+          ruggedfun is a simulation: play money with no real value, and nothing here is financial advice. Your account
+          lives in this browser; clear your cookies and it&apos;s gone. By creating a wallet you confirm you&apos;re 18+
+          and agree to the{" "}
+          <a href="/terms" target="_blank" rel="noopener" className="text-pump hover:underline">
+            Terms of Use
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" target="_blank" rel="noopener" className="text-pump hover:underline">
+            Privacy Policy
+          </a>
+          .
         </p>
       </form>
     </div>

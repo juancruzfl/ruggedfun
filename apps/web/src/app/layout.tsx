@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { CalloutTicker } from "@/components/CalloutTicker";
@@ -37,8 +38,20 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             {/* Bottom padding clears the callout ticker (and the mobile tab bar). */}
             <div className="pb-28 md:pb-12">
               <main>{children}</main>
-              <footer className="px-4 py-6 text-center text-xs text-muted">
-                Simulation only. Not financial advice. Nothing here has real value.
+              <footer className="space-y-1 px-4 py-6 text-center text-xs text-muted">
+                <p>
+                  A simulation for entertainment. Play money only, with no real value. Not financial advice. Not
+                  affiliated with any real platform or token.
+                </p>
+                <p>
+                  <Link href="/terms" className="hover:text-text hover:underline">
+                    Terms of Use
+                  </Link>
+                  {" · "}
+                  <Link href="/privacy" className="hover:text-text hover:underline">
+                    Privacy Policy
+                  </Link>
+                </p>
               </footer>
             </div>
             <MobileNav />
