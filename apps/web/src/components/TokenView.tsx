@@ -5,13 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import { formatPct, formatSol, timeAgo } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
 import { useQuickTrade } from "@/lib/quickTrade";
-import type { ListedTrade } from "@/lib/tokens";
+import type { ListedTrade, TokenFlows } from "@/lib/tokens";
 import { getSocket } from "@/lib/socket";
+import { useHolders } from "@/lib/useHolders";
 import { useNow } from "@/lib/useNow";
 import { LivePnlCard, usePnl, type PnlState } from "./LivePnl";
 import { BondingCurveCard, MarketHero } from "./MarketStats";
 import { PriceChart, type ChartInterval } from "./PriceChart";
 import { useSession } from "./SessionProvider";
+import { LiveChat } from "./LiveChat";
 import { TokenActivity } from "./TokenActivity";
 import { StatusBadge, TokenAvatar } from "./TokenBits";
 import { TradeForm } from "./TradeForm";
@@ -26,15 +28,15 @@ const INTERVALS: { value: ChartInterval; label: string }[] = [
 export function TokenView({
   initial,
   initialTrades,
-  initialVolumeSol,
-  initialRealized,
+  initialVolume,
+  initialFlows,
   renderedAt,
 }: {
   initial: TokenSummary;
   initialTrades: ListedTrade[];
-  initialVolumeSol: number;
-  /** Profit the signed-in player has already taken on this token, and the cost of what they sold. */
-  initialRealized: { realized: number; soldCost: number };
+  initialVolume: { total: number; day: number };
+  /** The signed-in player's buys and sells on this token so far. */
+  initialFlows: TokenFlows;
   renderedAt: number;
 }) {
   const live = useMarket((s) => s.tokens[initial.id]);
@@ -62,17 +64,20 @@ export function TokenView({
     return [...fresh, ...initialTrades.filter((t) => !seen.has(t.id))].slice(0, 50);
   }, [liveTrades, initialTrades, initial.id]);
 
-  const volumeSol =
-    initialVolumeSol +
-    liveTrades.filter((t) => t.tokenId === initial.id && t.at > renderedAt).reduce((sum, t) => sum + t.solAmount, 0);
+  // Trades since the page rendered count toward both (a page isn't open for 24 hours).
+  const sinceRender = liveTrades
+    .filter((t) => t.tokenId === initial.id && t.at > renderedAt)
+    .reduce((sum, t) => sum + t.solAmount, 0);
+  const volume = { total: initialVolume.total + sinceRender, day: initialVolume.day + sinceRender };
+  const holders = useHolders(initial.id);
 
   const position = me?.positions.find((p) => p.tokenId === initial.id);
   const gone = token.status === "rugged" || token.status === "dead";
   const openTrade = useQuickTrade((s) => s.open);
   const canBuy = Boolean(live) && live!.endedAt === null && !gone;
   const canSell = Boolean(live) && live!.endedAt === null && Boolean(position);
-  const pnl = usePnl(initial.id, token.price, position, me?.user.username, initialRealized, renderedAt);
-  const showPnl = Boolean(position) || pnl.realized !== 0;
+  const pnl = usePnl(initial.id, live, token.price, position, me?.user.username, initialFlows, renderedAt);
+  const showPnl = Boolean(position) || pnl.invested > 0;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 pb-20 lg:pb-6">
@@ -95,7 +100,7 @@ export function TokenView({
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_340px]">
         <div className="flex min-w-0 flex-col gap-4">
-          <MarketHero token={token} live={live} volumeSol={volumeSol} />
+          <MarketHero token={token} live={live} volume={volume} holders={holders?.count ?? null} />
 
           <section aria-label="Chart" className="flex flex-col rounded-xl border border-line bg-panel p-3">
             <div className="mb-2 flex items-center justify-between">
@@ -125,7 +130,7 @@ export function TokenView({
 
         <aside className="space-y-4">
           <section aria-label="Trade" className="rounded-xl border border-line bg-panel p-4">
-            <TradeForm tokenId={initial.id} />
+            <TradeForm tokenId={initial.id} ticker={token.ticker} />
           </section>
 
           {showPnl && <LivePnlCard live={live} ticker={token.ticker} pnl={pnl} />}
@@ -134,14 +139,18 @@ export function TokenView({
         </aside>
       </div>
 
-      <TokenActivity
-        tokenId={initial.id}
-        ticker={token.ticker}
-        price={token.price}
-        trades={trades}
-        me={me?.user.username}
-        now={now}
-      />
+      <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_340px]">
+        <TokenActivity
+          holders={holders}
+          tokenId={initial.id}
+          ticker={token.ticker}
+          price={token.price}
+          trades={trades}
+          me={me?.user.username}
+          now={now}
+        />
+        <LiveChat tokenId={initial.id} ticker={token.ticker} username={me?.user.username} />
+      </div>
 
       <MobileTradeBar
         canBuy={canBuy}

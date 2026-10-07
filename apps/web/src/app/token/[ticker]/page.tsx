@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TokenView } from "@/components/TokenView";
 import { getMe } from "@/lib/session";
-import { findTokenByTicker, getRealizedPnl, getRecentTrades, getVolumeSol } from "@/lib/tokens";
+import { findTokenByTicker, getRecentTrades, getTokenFlows, getVolume } from "@/lib/tokens";
 
 export async function generateMetadata({ params }: { params: Promise<{ ticker: string }> }): Promise<Metadata> {
   const { ticker } = await params;
@@ -16,17 +16,17 @@ export default async function TokenPage({ params }: { params: Promise<{ ticker: 
   if (!token) notFound();
 
   const me = await getMe();
-  const [trades, volumeSol, realizedPnl] = await Promise.all([
+  const [trades, volume, flows] = await Promise.all([
     getRecentTrades(token),
-    getVolumeSol(token.id),
-    me ? getRealizedPnl(me.user.id, token.id) : { realized: 0, soldCost: 0 },
+    getVolume(token.id),
+    me ? getTokenFlows(me.user.id, token.id) : { boughtSol: 0, boughtTokens: 0, soldSol: 0 },
   ]);
   return (
     <TokenView
       initial={token}
       initialTrades={trades}
-      initialVolumeSol={volumeSol}
-      initialRealized={realizedPnl}
+      initialVolume={volume}
+      initialFlows={flows}
       renderedAt={Date.now()}
     />
   );

@@ -14,6 +14,7 @@ import {
 import {
   bondingProgress,
   createRng,
+  flowForMove,
   GRADUATION_PRICE,
   initialCurve,
   LAUNCH_PRICE,
@@ -57,6 +58,8 @@ export interface MarketStore {
   insertToken(token: StoredToken): Promise<void>;
   /** Tokens that haven't ended yet. */
   loadLive(): Promise<StoredToken[]>;
+  /** Each bot's net token holdings (buys minus sells), per token, for the given tokens. */
+  loadBotHoldings(tokenIds: string[]): Promise<Map<string, Map<string, number>>>;
   /** `trades` are bot trades; player trades are written by the trade transaction. */
   save(tokens: StoredToken[], candles: Candle[], trades: TradeEvent[]): Promise<void>;
   /** Records every player holding the token as a rug victim. Idempotent. */
@@ -80,8 +83,13 @@ interface LiveToken extends StoredToken {
   candles: CandleBuilder[];
   /** Prices sampled every SPARKLINE_SAMPLE_SECONDS, for sparklines and 5m change. */
   history: number[];
-  /** The last few per-tick prices, for the bots' short-term momentum. */
-  recentPrices: number[];
+  /**
+   * The multiple behind the displayed price (price = displayMultiple × spotPrice(curve)).
+   * It only moves when a trade happens; bot trades pull it to the fate path's multiple.
+   */
+  displayMultiple: number;
+  /** What each bot holds of this token; bots can only sell what they bought. */
+  botHoldings: Map<string, number>;
   /** Trades in the last 5 minutes (time, SOL), for volume5m. */
   flow: { at: number; sol: number }[];
   devBought: boolean;
@@ -102,7 +110,17 @@ const PUMP_CALLOUT_MULTIPLES = [5, 10, 25, 50, 100, 1000];
 const RESTORE_CANDLE_WINDOW_MS = 10 * 60 * 1000;
 const SAMPLE_TICKS = SPARKLINE_SAMPLE_SECONDS / TICK_SECONDS;
 const RECENT_CALLOUTS = 20;
-const RECENT_PRICE_TICKS = 6;
+/** A gap this big between the displayed price and the fate path forces a bot trade to close it... */
+const FORCE_SYNC_DRIFT = 0.05;
+/**
+ * ...but at most this many forced trades per second across the market, biggest gaps first.
+ * Quiet tokens lag their path a little longer, like illiquid tokens do. Rugs aren't counted.
+ */
+const FORCED_SYNCS_PER_SECOND = 6;
+/** Below this gap a bot trade is plain flow and doesn't move the price. */
+const MOVE_DRIFT = 0.005;
+/** Bot bags smaller than this many tokens are dropped. */
+const DUST_TOKENS = 1;
 const VOLUME_WINDOW_MS = 5 * 60_000;
 /** Bot buys this big make the hot ticker. */
 const WHALE_SOL = 5;
@@ -135,24 +153,30 @@ function toTick(token: LiveToken): PriceTick {
   return { id, price, marketCap, bondingProgress, change5m, volume5m };
 }
 
+const driftOf = (token: LiveToken) => token.sim.multiple / token.displayMultiple - 1;
+
 /**
  * Every token that is still trading, advanced against the wall clock.
- * A token's price = its fate multiple × its bonding-curve spot price, so player trades
- * (which move the curve) stack on top of the fate path.
+ * Each token's fate path sets a target multiple every second, but the displayed price
+ * (displayMultiple × bonding-curve spot price) only moves when someone trades: bot trades pull it
+ * to the target, sized by the move, and player trades move the curve. No trade, no price change.
  */
 export class Market {
   private readonly live = new Map<string, LiveToken>();
   private readonly recentCallouts: Callout[] = [];
   /** Bot trades waiting for the next flush. */
   private pendingTrades: TradeEvent[] = [];
-  private readonly bots: BotFlow | null;
+  /** Tokens whose displayed price moved since the last tick broadcast. */
+  private readonly moved = new Set<LiveToken>();
+  private readonly bots: BotFlow;
 
   constructor(
     private readonly store: MarketStore,
     private readonly events: MarketEvents,
     options: { bots?: BotFlow } = {},
   ) {
-    this.bots = options.bots ?? null;
+    // Without a configured flow there's still a market: forced trades keep prices on their fate paths.
+    this.bots = options.bots ?? new BotFlow(0);
   }
 
   get size(): number {
@@ -168,8 +192,11 @@ export class Market {
   }
 
   async restore(now: number): Promise<void> {
-    for (const stored of await this.store.loadLive()) {
-      const token = this.track(stored, new TokenSim(stored.seed, { fate: stored.fate }));
+    const stored = await this.store.loadLive();
+    const holdings = await this.store.loadBotHoldings(stored.map((s) => s.summary.id));
+    for (const s of stored) {
+      const token = this.track(s, new TokenSim(s.seed, { fate: s.fate }));
+      token.botHoldings = holdings.get(s.summary.id) ?? new Map();
       this.advance(token, now, { quiet: true, candlesSince: now - RESTORE_CANDLE_WINDOW_MS });
     }
   }
@@ -215,21 +242,19 @@ export class Market {
     throw new Error("Could not find a free ticker after 5 attempts");
   }
 
-  /** Advances every token to `now`, runs a second of bot trading, and broadcasts the changes. */
+  /** Advances every token to `now`, runs a second of bot trading, and broadcasts prices that moved. */
   tick(now: number): void {
-    const changed: LiveToken[] = [];
-    for (const token of this.live.values()) {
-      if (this.advance(token, now)) changed.push(token);
-    }
+    for (const token of this.live.values()) this.advance(token, now);
     this.runBots(now);
-    if (changed.length > 0) this.events.ticks(changed.map(toTick));
+    if (this.moved.size > 0) this.events.ticks([...this.moved].map(toTick));
+    this.moved.clear();
   }
 
   /** Prices a trade at the current tick without applying it. Throws TradeError if it isn't allowed. */
   quote(tokenId: string, side: TradeSide, amount: number): { quote: TradeQuote; summary: TokenSummary } {
     const token = this.live.get(tokenId);
     if (!token || token.summary.endedAt !== null) throw new TradeError("This token has stopped trading", 409);
-    const { summary, curve, sim } = token;
+    const { summary, curve } = token;
 
     if (side === "buy") {
       if (summary.status === "rugged" || summary.status === "dead") {
@@ -243,7 +268,8 @@ export class Market {
     }
 
     try {
-      return { quote: quoteTrade(curve, sim.multiple, side, amount), summary: { ...summary } };
+      // At the displayed price: exactly what the browser quoted from the price and curve it was sent.
+      return { quote: quoteTrade(curve, token.displayMultiple, side, amount), summary: { ...summary } };
     } catch (err) {
       throw new TradeError(err instanceof Error ? err.message : "Trade rejected");
     }
@@ -257,8 +283,7 @@ export class Market {
     const token = this.live.get(trade.tokenId);
     if (!token) return;
     token.curve = { ...quote.curve };
-    const price = token.sim.multiple * spotPrice(token.curve);
-    this.setPrice(token, price, trade.at);
+    this.setPrice(token, trade.at);
     // Already persisted by the trade transaction.
     this.recordTrade(token, trade, { persist: false });
     this.events.ticks([toTick(token)]);
@@ -298,7 +323,8 @@ export class Market {
       candles: CANDLE_INTERVALS.map((interval) => new CandleBuilder(id, interval)),
       // The sim is fresh (tick 0), so this is the launch price; restores replay history from there.
       history: [sim.multiple * spotPrice(stored.curve)],
-      recentPrices: [sim.multiple * spotPrice(stored.curve)],
+      displayMultiple: sim.multiple,
+      botHoldings: new Map(),
       flow: [],
       // Only a fresh launch gets a dev buy (see launch); restored and backdated tokens don't.
       devBought: true,
@@ -309,33 +335,35 @@ export class Market {
     return token;
   }
 
-  /** Steps the token's sim up to `now`. Returns whether anything changed. */
-  private advance(token: LiveToken, now: number, options: AdvanceOptions = {}): boolean {
+  /**
+   * Steps the token's fate path up to `now`. Live, that only moves the target; the displayed
+   * price waits for a trade. When replaying quietly (restore, backdated launch) nobody was there
+   * to trade, so the displayed price simply follows the path.
+   */
+  private advance(token: LiveToken, now: number, options: AdvanceOptions = {}): void {
     const { sim, summary } = token;
     const target = Math.min(sim.plan.endTick, Math.floor((now - summary.createdAt) / TICK_MS));
-    if (sim.tick >= target) return false;
 
     while (sim.tick < target) {
-      const price = sim.step() * spotPrice(token.curve);
+      sim.step();
       const at = summary.createdAt + sim.tick * TICK_MS;
+      if (options.quiet) {
+        token.displayMultiple = sim.multiple;
+        this.setPrice(token, at, { quiet: true, candles: at >= (options.candlesSince ?? -Infinity) });
+      }
       if (sim.tick % SAMPLE_TICKS === 0) {
-        token.history.push(price);
+        token.history.push(summary.price);
         if (token.history.length > SPARKLINE_POINTS) token.history.shift();
       }
-      token.recentPrices.push(price);
-      if (token.recentPrices.length > RECENT_PRICE_TICKS) token.recentPrices.shift();
-      this.setPrice(token, price, at, {
-        quiet: options.quiet,
-        candles: at >= (options.candlesSince ?? -Infinity),
-      });
       this.checkLifecycle(token, at, options.quiet ?? false);
     }
-    token.dirty = true;
-    return true;
   }
 
+  /**
+   * One second of bot trading: the creator's launch buy, random flow (BotFlow), and a forced trade
+   * for any token whose displayed price has drifted 5%+ from its fate path.
+   */
   private runBots(now: number): void {
-    if (!this.bots) return;
     const views = [];
     for (const token of this.live.values()) {
       const { summary } = token;
@@ -349,18 +377,89 @@ export class Market {
         status: summary.status,
         marketCap: summary.marketCap,
         createdAt: summary.createdAt,
-        recentReturn: summary.price / token.recentPrices[0]! - 1,
+        recentReturn: driftOf(token),
       });
     }
+
+    const traded = new Set<string>();
     for (const order of this.bots.ordersFor(views, now)) {
       const token = this.live.get(order.tokenId);
-      if (token) this.fillBotOrder(token, order);
+      if (!token) continue;
+      this.fillBotOrder(token, order);
+      traded.add(order.tokenId);
+    }
+    const behind: { token: LiveToken; drift: number }[] = [];
+    for (const token of this.live.values()) {
+      if (token.summary.endedAt !== null || traded.has(token.summary.id)) continue;
+      const drift = driftOf(token);
+      if (Math.abs(drift) < FORCE_SYNC_DRIFT || (token.summary.status === "rugged" && drift > 0)) continue;
+      behind.push({ token, drift });
+    }
+    behind.sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift));
+    for (const { token, drift } of behind.slice(0, FORCED_SYNCS_PER_SECOND)) {
+      this.fillBotOrder(token, {
+        tokenId: token.summary.id,
+        side: drift > 0 ? "buy" : "sell",
+        solAmount: 0,
+        trader: this.bots.randomTrader(),
+      });
     }
   }
 
-  /** Records a bot trade at the current price (or `price`). Bots never move the curve. */
-  private fillBotOrder(token: LiveToken, order: BotOrder, price = token.summary.price): void {
-    const { summary } = token;
+  /**
+   * Records a bot trade. If the displayed price is off its fate path, the trade *is* the move:
+   * its side and size come from the move and the price jumps to the path. Otherwise it's plain
+   * flow at the current price. Bots never touch the curve, and they only sell what they hold:
+   * with no holder to sell into a drop, the trade becomes a plain buy (that buyer can sell next).
+   */
+  private fillBotOrder(token: LiveToken, order: BotOrder): void {
+    const { summary, botHoldings } = token;
+    const at = tokenTime(token);
+    const drift = driftOf(token);
+    let moves = Math.abs(drift) >= MOVE_DRIFT && !(summary.status === "rugged" && drift > 0);
+    let side = moves ? (drift > 0 ? "buy" : "sell") : order.side;
+    let trader = order.trader;
+
+    // The creator can always rug their own token, bag or not (backdated tokens never got a launch buy).
+    const isRug = order.trader === summary.creatorHandle && summary.status === "rugged" && moves && side === "sell";
+    if (side === "sell") {
+      // Creators hold until they rug: their only sell is the rug itself.
+      const seller = isRug ? order.trader : this.bots.pickHolder(botHoldings, summary.creatorHandle);
+      if (seller) {
+        trader = seller;
+      } else if (summary.status === "rugged") {
+        return; // Nobody left to panic-sell.
+      } else {
+        moves = false;
+        side = "buy";
+      }
+    }
+
+    let price = summary.price;
+    let tokenAmount: number;
+    let solAmount: number;
+    if (moves) {
+      const flow = flowForMove(token.curve, token.displayMultiple, token.sim.multiple);
+      price = flow.avgPrice;
+      const bag = botHoldings.get(trader) ?? 0;
+      tokenAmount = side === "sell" && !(isRug && bag === 0) ? Math.min(flow.tokenAmount, bag) : flow.tokenAmount;
+      solAmount = side === "sell" ? tokenAmount * flow.avgPrice : flow.solAmount;
+      token.displayMultiple = token.sim.multiple;
+      this.setPrice(token, at);
+    } else if (side === "sell") {
+      const size = order.solAmount > 0 ? order.solAmount : this.bots.flowSize(summary);
+      tokenAmount = Math.min(botHoldings.get(trader)!, size / price);
+      solAmount = tokenAmount * price;
+    } else {
+      solAmount = order.solAmount > 0 ? order.solAmount : this.bots.flowSize(summary);
+      tokenAmount = solAmount / price;
+    }
+    if (!(solAmount > 0)) return;
+
+    const held = (botHoldings.get(trader) ?? 0) + (side === "buy" ? tokenAmount : -tokenAmount);
+    if (held > DUST_TOKENS) botHoldings.set(trader, held);
+    else botHoldings.delete(trader);
+
     this.recordTrade(
       token,
       {
@@ -369,15 +468,15 @@ export class Market {
         ticker: summary.ticker,
         name: summary.name,
         imageUrl: summary.imageUrl,
-        side: order.side,
-        solAmount: order.solAmount,
-        tokenAmount: order.solAmount / price,
+        side,
+        solAmount,
+        tokenAmount,
         price,
-        trader: order.trader,
+        trader,
         isBot: true,
-        isDev: order.trader === summary.creatorHandle,
+        isDev: trader === summary.creatorHandle,
         realizedPnlSol: null,
-        at: tokenTime(token),
+        at,
         priceAfter: summary.price,
         curve: { ...token.curve },
       },
@@ -418,14 +517,10 @@ export class Market {
     }
   }
 
-  /** Updates price-derived fields and candles, and fires graduation / pump milestones. */
-  private setPrice(
-    token: LiveToken,
-    price: number,
-    at: number,
-    options: { quiet?: boolean; candles?: boolean; volume?: number } = {},
-  ): void {
+  /** Reprices from displayMultiple and the curve, updates candles, and fires graduation / pump milestones. */
+  private setPrice(token: LiveToken, at: number, options: { quiet?: boolean; candles?: boolean } = {}): void {
     const { summary } = token;
+    const price = token.displayMultiple * spotPrice(token.curve);
     summary.price = price;
     summary.marketCap = marketCapSol(price);
     summary.athPrice = Math.max(summary.athPrice, price);
@@ -434,10 +529,12 @@ export class Market {
     if (options.candles ?? true) {
       const emit = !options.quiet && this.events.wantsCandles(summary.id);
       for (const builder of token.candles) {
-        const candle = builder.add(at, price, options.volume ?? 0);
+        const candle = builder.add(at, price);
         if (emit) this.events.candle(candle);
       }
     }
+    token.dirty = true;
+    if (!options.quiet) this.moved.add(token);
     this.checkPriceMilestones(token, at, options.quiet ?? false);
   }
 
@@ -477,22 +574,20 @@ export class Market {
     const { sim, summary } = token;
     if (sim.tick === sim.plan.rugTick && summary.status === "live") {
       summary.status = "rugged";
+      // The rug is the creator dumping at the top: a sell sized to take the price down to the path.
+      // (Replaying quietly, the price already followed the path.)
+      if (!quiet) this.fillBotOrder(token, { tokenId: summary.id, side: "sell", solAmount: 0, trader: summary.creatorHandle });
       const drop = Math.min(99, Math.floor((1 - summary.price / summary.athPrice) * 100));
       this.callout(token, "rug", `💀 $${summary.ticker} RUGGED -${drop}%`, at, quiet);
       this.statusChanged(token, quiet);
       // Even when replaying quietly after a restart: holders still got rugged.
       this.store.recordRug(summary.id, at).catch((err) => console.error("recording rug victims failed", err));
-      if (!quiet && this.bots) {
-        // The creator sells at the top; that sell is the rug. Priced at the last pre-rug tick.
-        const preRugPrice = token.recentPrices.at(-2) ?? summary.price;
-        const ath = marketCapSol(summary.athPrice);
-        this.fillBotOrder(token, this.bots.devDump(summary.id, summary.creatorHandle, ath), preRugPrice);
-      }
     }
 
     if (sim.done) {
       if (summary.status === "live") summary.status = sim.plan.endStatus;
       summary.endedAt = at;
+      token.dirty = true;
       this.statusChanged(token, quiet);
     }
   }

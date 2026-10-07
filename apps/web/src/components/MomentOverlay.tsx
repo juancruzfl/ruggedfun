@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPct, formatSol } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
+import { positionValue } from "@/lib/positionValue";
 import { useMoments, type Moment } from "@/lib/moments";
 import { useQuickTrade } from "@/lib/quickTrade";
 import { useSession } from "./SessionProvider";
@@ -31,7 +32,7 @@ function useRugWatcher() {
       const p = positions.current.find((pos) => pos.tokenId === tokenId);
       const token = useMarket.getState().tokens[tokenId];
       if (!p || !token) return;
-      const value = p.tokenAmount * token.price;
+      const value = positionValue(p.tokenAmount, token, p.lastPrice);
       show({
         kind: "rug",
         tokenId,

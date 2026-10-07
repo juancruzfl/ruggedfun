@@ -170,13 +170,16 @@ export async function getRecentTradesAll(limit = 100): Promise<ListedTrade[]> {
   }));
 }
 
-/** All-time SOL volume traded on a token. */
-export async function getVolumeSol(tokenId: string): Promise<number> {
+/** SOL volume traded on a token: all time and in the last 24 hours. */
+export async function getVolume(tokenId: string): Promise<{ total: number; day: number }> {
   const [row] = await db
-    .select({ volume: sql<number>`coalesce(sum(${trades.solAmount}), 0)::float8` })
+    .select({
+      total: sql<number>`coalesce(sum(${trades.solAmount}), 0)::float8`,
+      day: sql<number>`coalesce(sum(${trades.solAmount}) filter (where ${trades.createdAt} > now() - interval '24 hours'), 0)::float8`,
+    })
     .from(trades)
     .where(eq(trades.tokenId, tokenId));
-  return row?.volume ?? 0;
+  return { total: row?.total ?? 0, day: row?.day ?? 0 };
 }
 
 export interface Holder {
@@ -234,17 +237,21 @@ export async function getHolders(
   return { count: rows[0]?.total ?? 0, holders: holders.filter((h) => h.rank <= limit), mine };
 }
 
-/**
- * Profit already taken on a token by one player, and the cost basis of the tokens they sold
- * (so PnL % can be measured against everything they put in, not just what's still held).
- */
-export async function getRealizedPnl(userId: string, tokenId: string): Promise<{ realized: number; soldCost: number }> {
+/** A player's cash in and out of one token: SOL spent on buys (and tokens bought), SOL received from sells. */
+export interface TokenFlows {
+  boughtSol: number;
+  boughtTokens: number;
+  soldSol: number;
+}
+
+export async function getTokenFlows(userId: string, tokenId: string): Promise<TokenFlows> {
   const [row] = await db
     .select({
-      realized: sql<number>`coalesce(sum(${trades.realizedPnlSol}), 0)::float8`,
-      soldCost: sql<number>`coalesce(sum(${trades.solAmount} - ${trades.realizedPnlSol}), 0)::float8`,
+      boughtSol: sql<number>`coalesce(sum(${trades.solAmount}) filter (where ${trades.side} = 'buy'), 0)::float8`,
+      boughtTokens: sql<number>`coalesce(sum(${trades.tokenAmount}) filter (where ${trades.side} = 'buy'), 0)::float8`,
+      soldSol: sql<number>`coalesce(sum(${trades.solAmount}) filter (where ${trades.side} = 'sell'), 0)::float8`,
     })
     .from(trades)
-    .where(and(eq(trades.userId, userId), eq(trades.tokenId, tokenId), sql`${trades.realizedPnlSol} is not null`));
-  return { realized: row?.realized ?? 0, soldCost: row?.soldCost ?? 0 };
+    .where(and(eq(trades.userId, userId), eq(trades.tokenId, tokenId)));
+  return { boughtSol: row?.boughtSol ?? 0, boughtTokens: row?.boughtTokens ?? 0, soldSol: row?.soldSol ?? 0 };
 }

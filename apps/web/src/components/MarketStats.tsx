@@ -16,9 +16,9 @@ function change1m(live: MarketToken | undefined): number | undefined {
   return live.price / ref - 1;
 }
 
-function StripStat({ label, children }: { label: string; children: ReactNode }) {
+function StripStat({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" title={title}>
       <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</dt>
       <dd className="mt-0.5 truncate font-mono text-sm font-semibold">{children}</dd>
     </div>
@@ -29,7 +29,17 @@ function StripStat({ label, children }: { label: string; children: ReactNode }) 
  * Market cap as the headline, its distance from the all-time high, and a strip of the
  * numbers traders glance at: price, short-term change and volume.
  */
-export function MarketHero({ token, live, volumeSol }: { token: TokenSummary; live?: MarketToken; volumeSol: number }) {
+export function MarketHero({
+  token,
+  live,
+  volume,
+  holders,
+}: {
+  token: TokenSummary;
+  live?: MarketToken;
+  volume: { total: number; day: number };
+  holders: number | null;
+}) {
   const flash = useFlash(token.marketCap);
   const athMcap = token.marketCap * (token.athPrice / token.price);
   const ofAth = athMcap > 0 ? Math.min(1, token.marketCap / athMcap) : 1;
@@ -87,17 +97,27 @@ export function MarketHero({ token, live, volumeSol }: { token: TokenSummary; li
         </div>
       </div>
 
-      <dl className="grid grid-cols-3 gap-x-4 gap-y-3 border-t border-line px-4 py-3 sm:grid-cols-5">
+      <dl className="grid grid-cols-3 gap-x-4 gap-y-3 border-t border-line px-4 py-3 sm:grid-cols-4">
         <StripStat label="Price">
           <Price value={token.price} /> <span className="text-xs font-normal text-muted">SOL</span>
         </StripStat>
+        <StripStat
+          label="Liquidity"
+          title="The SOL side of the bonding curve pool. Deeper liquidity = less price impact."
+        >
+          {live ? formatUsd(live.price * live.curve.virtualTokens) : "—"}
+        </StripStat>
+        <StripStat label="Holders">{holders === null ? "—" : holders.toLocaleString("en-US")}</StripStat>
         <StripStat label="1m">{c1m === undefined ? "—" : <Change value={c1m} />}</StripStat>
         <StripStat label="5m">{live ? <Change value={live.change5m} /> : "—"}</StripStat>
         <StripStat label="5m vol">
           {live ? formatSol(live.volume5m) : "—"} <span className="text-xs font-normal text-muted">SOL</span>
         </StripStat>
+        <StripStat label="24h vol">
+          {formatSol(volume.day)} <span className="text-xs font-normal text-muted">SOL</span>
+        </StripStat>
         <StripStat label="Total vol">
-          {formatSol(volumeSol)} <span className="text-xs font-normal text-muted">SOL</span>
+          {formatSol(volume.total)} <span className="text-xs font-normal text-muted">SOL</span>
         </StripStat>
       </dl>
     </section>

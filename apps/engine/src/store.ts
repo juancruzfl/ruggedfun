@@ -1,6 +1,6 @@
 import { candles, netWorthSnapshots, tokens, trades, type Db, type SqlClient, type TokenRow } from "@ruggedfun/db";
 import type { Candle, TradeEvent } from "@ruggedfun/shared";
-import { bondingProgress } from "@ruggedfun/sim";
+import { bondingProgress, CURVE } from "@ruggedfun/sim";
 import { and, inArray, isNull, lt, sql } from "drizzle-orm";
 import { TickerTakenError, type MarketStore, type StoredToken } from "./market";
 
@@ -66,6 +66,23 @@ export class PgStore implements MarketStore {
       if (isUniqueViolation(err)) throw new TickerTakenError(summary.ticker);
       throw err;
     }
+  }
+
+  async loadBotHoldings(tokenIds: string[]): Promise<Map<string, Map<string, number>>> {
+    const result = new Map<string, Map<string, number>>();
+    if (tokenIds.length === 0) return result;
+    const rows = await this.sql<{ token_id: string; bot_handle: string; amount: number }[]>`
+      select token_id, bot_handle,
+             sum(case when side = 'buy' then token_amount else -token_amount end)::float8 as amount
+      from trades
+      where bot_handle is not null and token_id = any(${tokenIds}::uuid[])
+      group by token_id, bot_handle
+      having sum(case when side = 'buy' then token_amount else -token_amount end) > 1`;
+    for (const row of rows) {
+      if (!result.has(row.token_id)) result.set(row.token_id, new Map());
+      result.get(row.token_id)!.set(row.bot_handle, row.amount);
+    }
+    return result;
   }
 
   async loadLive(): Promise<StoredToken[]> {
@@ -145,12 +162,22 @@ export class PgStore implements MarketStore {
       on conflict do nothing`;
   }
 
-  /** Samples every player's net worth (SOL + positions at the last stored price) for 24h PnL. */
+  /**
+   * Samples every player's net worth (SOL + what their positions would sell for) for 24h PnL.
+   * The position value is the SQL twin of liquidationValue in packages/sim; tokens that stopped
+   * trading keep their last price.
+   */
   async snapshotNetWorth(at: number): Promise<void> {
+    const sellable = this.sql`least(p.token_amount, ${CURVE.curveTokens} - t.tokens_left)`;
     await this.sql`
       insert into net_worth_snapshots (user_id, at, net_worth_sol)
       select w.user_id, ${new Date(at).toISOString()}::timestamptz,
-             w.sol_balance + coalesce(sum(p.token_amount * t.price), 0)
+             w.sol_balance + coalesce(sum(
+               case when t.ended_at is null
+                 then greatest(0, t.price * t.virtual_tokens * ${sellable} / (t.virtual_tokens + ${sellable}))
+                      * ${1 - CURVE.feeBps / 10_000}
+                 else p.token_amount * t.price
+               end), 0)
       from wallets w
       left join positions p on p.user_id = w.user_id
       left join tokens t on t.id = p.token_id

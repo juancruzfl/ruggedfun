@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatPct, formatTokens } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
+import { positionValue } from "@/lib/positionValue";
 import { useSession } from "./SessionProvider";
 import { TokenAvatar } from "./TokenBits";
 
@@ -33,9 +34,9 @@ export function WalletChip() {
 
   if (!me) return null;
 
-  // Tokens that stopped trading keep their last stored price (≈ zero for rugs).
+  // What each position would actually sell for (see positionValue).
   const holdings = me.positions.map((p) => {
-    const value = p.tokenAmount * (live[p.tokenId]?.price ?? p.lastPrice);
+    const value = positionValue(p.tokenAmount, live[p.tokenId], p.lastPrice);
     return { ...p, value, pnl: p.costBasisSol > 0 ? value / p.costBasisSol - 1 : 0 };
   });
   const netWorth = me.wallet.solBalance + holdings.reduce((sum, h) => sum + h.value, 0);

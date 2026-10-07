@@ -60,11 +60,6 @@ describe("BotFlow", () => {
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(BOT_TUNING.minSol);
     expect(Math.max(...sizes)).toBeLessThanOrEqual(BOT_TUNING.maxSol);
   });
-
-  it("sizes the dev dump from the ATH market cap", () => {
-    const dump = new BotFlow(1).devDump("t", "dev", 100);
-    expect(dump).toMatchObject({ side: "sell", solAmount: 15, trader: "dev" });
-  });
 });
 
 // Keep the import used: bots never touch the curve, so tests compare against a fresh one.

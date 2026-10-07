@@ -3,9 +3,11 @@ import { createRng, LAUNCH_PRICE, marketCapSol } from "@ruggedfun/sim";
 import { generateHandle } from "./names";
 
 /**
- * Bots are the traders behind each token's fate path. Their trades are the visible flow that
- * "caused" the price, so they're recorded at the current price and do NOT move the curve
- * (that would count the market twice and bend the fate odds). Only players move the curve.
+ * Bots are the traders behind each token's fate path. The market (see Market.fillBotOrder) turns
+ * their orders into the trades that move the displayed price along the path; they never move the
+ * curve (that would count the market twice and bend the fate odds). Only players move the curve.
+ * Here: how often each token trades and how big plain-flow trades are. `recentReturn` is the gap
+ * between a token's displayed price and its fate path, so drifting tokens attract traders.
  */
 export const BOT_TUNING = {
   /** Trades per second per unit of activity, before the global budget is applied. */
@@ -32,8 +34,6 @@ export const BOT_TUNING = {
   minSol: 0.01,
   /** The creator's buy right after launch. */
   devBuySol: [0.5, 3] as const,
-  /** The creator's dump at the rug, as a share of the ATH market cap. */
-  devDumpShare: 0.15,
   handlePool: 400,
 };
 
@@ -101,13 +101,8 @@ export class BotFlow {
     return { tokenId, side: "buy", solAmount: round(min + (max - min) * this.random()), trader: creator };
   }
 
-  devDump(tokenId: string, creator: string, athMarketCap: number): BotOrder {
-    return {
-      tokenId,
-      side: "sell",
-      solAmount: round(Math.max(1, Math.min(200, athMarketCap * BOT_TUNING.devDumpShare))),
-      trader: creator,
-    };
+  randomTrader(): string {
+    return this.handles[Math.floor(this.random() * this.handles.length)]!;
   }
 
   private order(token: BotView): BotOrder {
@@ -117,18 +112,32 @@ export class BotFlow {
         ? 0
         : Math.min(t.maxBuyChance, Math.max(t.minBuyChance, 0.5 + t.returnBias * token.recentReturn));
     const side: TradeSide = this.random() < buyChance ? "buy" : "sell";
+    return { tokenId: token.id, side, solAmount: this.flowSize(token), trader: this.randomTrader() };
+  }
 
-    // Bigger tokens draw bigger trades; post-rug panic sells are small.
+  /** A plain-flow trade size in SOL: log-normal, bigger for bigger tokens, small after a rug. */
+  flowSize(token: Pick<BotView, "status" | "marketCap">): number {
+    const t = BOT_TUNING;
     const sizeBoost = 1 + 0.5 * Math.max(0, Math.log10(token.marketCap / LAUNCH_MCAP));
     const panic = token.status === "rugged" ? 0.3 : 1;
     const size = t.sizeMedianSol * Math.exp(t.sizeSigma * this.normal()) * sizeBoost * panic;
+    return round(Math.min(t.maxSol, Math.max(t.minSol, size)));
+  }
 
-    return {
-      tokenId: token.id,
-      side,
-      solAmount: round(Math.min(t.maxSol, Math.max(t.minSol, size))),
-      trader: this.handles[Math.floor(this.random() * this.handles.length)]!,
-    };
+  /** Picks one of a token's bot holders (other than `exclude`), bigger bags more likely. */
+  pickHolder(holdings: Map<string, number>, exclude?: string): string | null {
+    let total = 0;
+    for (const [trader, amount] of holdings) if (trader !== exclude) total += amount;
+    if (total <= 0) return null;
+    let r = this.random() * total;
+    let last: string | null = null;
+    for (const [trader, amount] of holdings) {
+      if (trader === exclude) continue;
+      last = trader;
+      r -= amount;
+      if (r < 0) return trader;
+    }
+    return last;
   }
 
   private normal(): number {

@@ -1,51 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CURVE } from "@ruggedfun/sim";
 import { formatSol, formatTokens, formatUsd, timeAgo } from "@/lib/format";
 import type { Holder, ListedTrade } from "@/lib/tokens";
+import type { HolderData } from "@/lib/useHolders";
 import { TraderName } from "./TraderName";
 
-const TABS = ["trades", "holders", "callouts"] as const;
+const TABS = ["trades", "holders"] as const;
 type Tab = (typeof TABS)[number];
 
-const HOLDERS_REFRESH_MS = 10_000;
-
-type HolderData = { holders: Holder[]; count: number; mine: Holder | null };
-
-/** Holders, refreshed every 10s while their tab is open. The count loads once up front for the tab label. */
-function useHolders(tokenId: string, active: boolean) {
-  const [data, setData] = useState<HolderData | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = () =>
-      fetch(`/api/tokens/${tokenId}/holders`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((d) => !cancelled && d && setData(d))
-        .catch(() => {});
-    void load();
-    if (!active) return () => void (cancelled = true);
-    const timer = setInterval(load, HOLDERS_REFRESH_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [tokenId, active]);
-
-  return data;
-}
-
-/** Trades / Holders / Callouts for one token. */
+/** Trades / Holders for one token. */
 export function TokenActivity({
   tokenId,
   ticker,
   price,
   trades,
+  holders,
   me,
   now,
 }: {
   tokenId: string;
+  holders: HolderData | null;
   ticker: string;
   price: number;
   trades: ListedTrade[];
@@ -53,21 +29,14 @@ export function TokenActivity({
   now: number;
 }) {
   const [tab, setTab] = useState<Tab>("trades");
-  const holders = useHolders(tokenId, tab === "holders");
 
   const labels: Record<Tab, React.ReactNode> = {
     trades: "Trades",
     holders: <>Holders{holders ? <span className="ml-1 font-mono text-xs opacity-70">{holders.count}</span> : null}</>,
-    callouts: (
-      <>
-        Callouts{" "}
-        <span className="ml-1 rounded bg-panel-2 px-1 py-px text-[9px] font-bold tracking-wide text-muted">SOON</span>
-      </>
-    ),
   };
 
   return (
-    <section aria-label="Activity" className="mt-4 rounded-xl border border-line bg-panel">
+    <section aria-label="Activity" className="min-w-0 rounded-xl border border-line bg-panel">
       <div role="tablist" className="flex gap-1 border-b border-line px-2">
         {TABS.map((t) => (
           <button
@@ -90,15 +59,6 @@ export function TokenActivity({
       <div role="tabpanel" id={`activity-panel-${tab}`} aria-labelledby={`activity-tab-${tab}`}>
         {tab === "trades" && <TradesTable trades={trades} ticker={ticker} me={me} now={now} />}
         {tab === "holders" && <HoldersTable data={holders} ticker={ticker} price={price} me={me} />}
-        {tab === "callouts" && (
-          <div className="px-4 py-14 text-center">
-            <div className="text-4xl" aria-hidden>
-              📣
-            </div>
-            <p className="mt-3 font-semibold">Callouts are coming soon</p>
-            <p className="mt-1 text-sm text-muted">Post your call on ${ticker} and see who called it first.</p>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -143,7 +103,9 @@ function TradesTable({
               </td>
               <td className="px-2 py-2 sm:px-4 text-right font-mono">{formatUsd(t.price * CURVE.totalSupply)}</td>
               <td className="px-2 py-2 sm:px-4 text-right font-mono">{formatSol(t.solAmount)}</td>
-              <td className="hidden px-2 py-2 sm:px-4 text-right font-mono sm:table-cell">{formatTokens(t.tokenAmount)}</td>
+              <td className="hidden px-2 py-2 sm:px-4 text-right font-mono sm:table-cell">
+                {formatTokens(t.tokenAmount)}
+              </td>
               <td className="px-2 py-2 sm:px-4 text-right text-muted">{timeAgo(t.at, now)}</td>
             </tr>
           ))}

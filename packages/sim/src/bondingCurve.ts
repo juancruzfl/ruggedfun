@@ -146,3 +146,46 @@ export function quoteTrade(curve: CurveState, multiple: number, side: TradeSide,
 export function tokensSold(curve: CurveState): number {
   return CURVE.curveTokens - curve.tokensLeft;
 }
+
+/**
+ * SOL you'd actually get for selling `tokens` right now: price impact and fee included, at the
+ * token's current price (so its fate multiple is price / spotPrice(curve)). Can't sell more than
+ * the curve has sold. This, not tokens × price, is a position's real value: on a thin curve your
+ * own buy inflates the price, and that inflation isn't money you can take out.
+ */
+export function liquidationValue(curve: CurveState, price: number, tokens: number): number {
+  const sellable = Math.min(tokens, tokensSold(curve));
+  if (!(sellable > 0) || !(price > 0)) return 0;
+  // quoteSell in closed form: price × vT × T / (vT + T), minus the fee.
+  const gross = (price * curve.virtualTokens * sellable) / (curve.virtualTokens + sellable);
+  return gross * (1 - CURVE.feeBps / 10_000);
+}
+
+export interface FlowTrade {
+  side: TradeSide;
+  solAmount: number;
+  tokenAmount: number;
+  /** Average fill price, SOL per token. */
+  avgPrice: number;
+}
+
+/**
+ * The trade that would move a token's multiple from `from` to `to` on this curve: how bots'
+ * trades are sized so each price move has a trade behind it. The curve itself isn't changed.
+ */
+export function flowForMove(curve: CurveState, from: number, to: number): FlowTrade {
+  const ratio = to / from;
+  const fee = CURVE.feeBps / 10_000;
+  const { virtualSol: vs, virtualTokens: vt } = curve;
+  if (ratio >= 1) {
+    // Buying x curve units multiplies spot by ((vs + x) / vs)².
+    const units = vs * (Math.sqrt(ratio) - 1);
+    const tokenAmount = (vt * units) / (vs + units);
+    const solAmount = units * from * (1 + fee);
+    return { side: "buy", solAmount, tokenAmount, avgPrice: solAmount / tokenAmount };
+  }
+  // Selling T tokens multiplies spot by (vt / (vt + T))².
+  const tokenAmount = vt * (1 / Math.sqrt(ratio) - 1);
+  const solAmount = vs * (1 - Math.sqrt(ratio)) * from * (1 - fee);
+  return { side: "sell", solAmount, tokenAmount, avgPrice: solAmount / tokenAmount };
+}

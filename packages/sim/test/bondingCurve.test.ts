@@ -72,3 +72,54 @@ describe("quoteTrade", () => {
     expect(quoteTrade(buy.curve, 0.02, "sell", buy.tokenAmount).solAmount).toBeLessThan(0.03);
   });
 });
+
+describe("liquidationValue", () => {
+  it("matches an actual sell quote at the current price", async () => {
+    const { initialCurve, liquidationValue, quoteTrade, spotPrice } = await import("../src");
+    for (const m of [10, 1, 0.1, 0.03]) {
+      const buy = quoteTrade(initialCurve(), m, "buy", 1);
+      const price = m * spotPrice(buy.curve);
+      const sell = quoteTrade(buy.curve, m, "sell", buy.tokenAmount);
+      expect(liquidationValue(buy.curve, price, buy.tokenAmount)).toBeCloseTo(sell.solAmount, 9);
+    }
+  });
+
+  it("is about -2% of cost right after a buy, however thin the curve (mark value isn't)", async () => {
+    const { initialCurve, liquidationValue, quoteTrade, spotPrice } = await import("../src");
+    for (const m of [10, 1, 0.03]) {
+      const buy = quoteTrade(initialCurve(), m, "buy", 1);
+      const price = m * spotPrice(buy.curve);
+      expect(liquidationValue(buy.curve, price, buy.tokenAmount)).toBeCloseTo(0.9802, 3);
+    }
+    const thin = quoteTrade(initialCurve(), 0.03, "buy", 1);
+    expect(thin.tokenAmount * 0.03 * spotPrice(thin.curve)).toBeGreaterThan(2);
+  });
+
+  it("is 0 when nothing can be sold", async () => {
+    const { initialCurve, liquidationValue, LAUNCH_PRICE } = await import("../src");
+    expect(liquidationValue(initialCurve(), LAUNCH_PRICE, 1_000_000)).toBe(0);
+  });
+});
+
+describe("flowForMove", () => {
+  it("sizes a buy that moves the spot price by exactly the requested ratio", async () => {
+    const { initialCurve, flowForMove, quoteTrade, spotPrice } = await import("../src");
+    const curve = initialCurve();
+    const flow = flowForMove(curve, 2, 2.2);
+    expect(flow.side).toBe("buy");
+    // Replaying it as a real trade lands on the target multiple's price.
+    const real = quoteTrade(curve, 2, "buy", flow.solAmount);
+    expect(2 * spotPrice(real.curve)).toBeCloseTo(2.2 * spotPrice(curve), 15);
+    expect(real.tokenAmount).toBeCloseTo(flow.tokenAmount, 3);
+  });
+
+  it("sizes a sell for a drop, and a rug-sized drop is a big sell", async () => {
+    const { initialCurve, flowForMove, quoteBuy } = await import("../src");
+    const curve = quoteBuy(initialCurve(), 20).state;
+    const small = flowForMove(curve, 1, 0.95);
+    const rug = flowForMove(curve, 4, 0.1);
+    expect(small.side).toBe("sell");
+    expect(small.solAmount).toBeGreaterThan(0);
+    expect(rug.solAmount).toBeGreaterThan(50);
+  });
+});

@@ -1,59 +1,83 @@
 "use client";
 
 import type { MarketToken, PositionSummary } from "@ruggedfun/shared";
-import { CURVE, quoteTrade, spotPrice, tokensSold } from "@ruggedfun/sim";
+import { CURVE } from "@ruggedfun/sim";
 import { useEffect, useRef, useState } from "react";
-import { formatPct, formatSol, formatTokens, formatUsd } from "@/lib/format";
 import { useShallow } from "zustand/react/shallow";
+import { formatPct, formatSol, formatTokens, formatUsd } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
+import { positionValue } from "@/lib/positionValue";
+import type { TokenFlows } from "@/lib/tokens";
 import { useFlash } from "./useFlash";
 
 const MAX_POINTS = 300;
 
 export interface PnlState {
   position: PositionSummary | undefined;
-  /** Mark-to-market value of the tokens held. */
+  /** SOL spent on buys. */
+  invested: number;
+  /** SOL received from sells. */
+  sold: number;
+  /** What the tokens still held would sell for right now (price impact and fee included). */
+  held: number;
+  /** sold + held. */
   value: number;
-  unrealized: number;
-  realized: number;
+  /** value − invested. */
   total: number;
-  /** Total PnL as a share of everything put in (cost still held + cost already sold). */
+  /** total / invested. */
   pct: number;
+  /** Average market cap paid across all buys. */
+  avgEntryMcap: number | null;
 }
 
 /**
- * The player's PnL on one token: unrealized (held tokens at the live price) plus realized
- * (profit already taken on sells, from the server render plus sells made since).
+ * The player's PnL on one token as cash in vs. cash out: Value (SOL already taken out by selling
+ * plus what's held would sell for now) minus Invested (SOL put in). Held is valued at sell value,
+ * not tokens × price: on a thin curve your own buy pushes the price up, and that isn't profit.
+ * Flows come from the server render plus the player's own trades since.
  */
 export function usePnl(
   tokenId: string,
-  price: number,
+  live: MarketToken | undefined,
+  lastPrice: number,
   position: PositionSummary | undefined,
   username: string | undefined,
-  initial: { realized: number; soldCost: number },
+  initial: TokenFlows,
   renderedAt: number,
 ): PnlState {
   const session = useMarket(
     useShallow((s) => {
-      let realized = 0;
-      let soldCost = 0;
+      let boughtSol = 0;
+      let boughtTokens = 0;
+      let soldSol = 0;
       for (const t of s.trades) {
         if (t.tokenId !== tokenId || t.isBot || t.trader !== username || t.at <= renderedAt) continue;
-        if (t.realizedPnlSol === null) continue;
-        realized += t.realizedPnlSol;
-        soldCost += t.solAmount - t.realizedPnlSol;
+        if (t.side === "buy") {
+          boughtSol += t.solAmount;
+          boughtTokens += t.tokenAmount;
+        } else {
+          soldSol += t.solAmount;
+        }
       }
-      return { realized, soldCost };
+      return { boughtSol, boughtTokens, soldSol };
     }),
   );
-  const realized = initial.realized + session.realized;
-  const cost = position?.costBasisSol ?? 0;
-  const value = (position?.tokenAmount ?? 0) * price;
-  const unrealized = value - cost;
-  const total = unrealized + realized;
-  // Measure against everything put in: cost still held plus the cost of tokens already sold.
-  const invested = cost + initial.soldCost + session.soldCost;
-  return { position, value, unrealized, realized, total, pct: invested > 0 ? total / invested : 0 };
+  const invested = initial.boughtSol + session.boughtSol;
+  const boughtTokens = initial.boughtTokens + session.boughtTokens;
+  const sold = initial.soldSol + session.soldSol;
+  const held = position ? positionValue(position.tokenAmount, live, lastPrice) : 0;
+  const value = sold + held;
+  const total = value - invested;
+  return {
+    position,
+    invested,
+    sold,
+    held,
+    value,
+    total,
+    pct: invested > 0 ? total / invested : 0,
+    avgEntryMcap: boughtTokens > 0 ? (invested / boughtTokens) * CURVE.totalSupply : null,
+  };
 }
 
 /** PnL over time since the page opened, with a zero line. */
@@ -89,17 +113,30 @@ function PnlLine({ points }: { points: number[] }) {
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  hint,
+  children,
+  strong = false,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  strong?: boolean;
+}) {
   return (
     <div className="flex justify-between gap-2">
-      <dt className="text-muted">{label}</dt>
-      <dd className="text-right font-mono">{children}</dd>
+      <dt className={strong ? "font-semibold" : "text-muted"}>
+        {label}
+        {hint && <span className="ml-1 text-xs font-normal text-muted">{hint}</span>}
+      </dt>
+      <dd className={`text-right font-mono ${strong ? "font-semibold" : ""}`}>{children}</dd>
     </div>
   );
 }
 
 export function LivePnlCard({ live, ticker, pnl }: { live: MarketToken | undefined; ticker: string; pnl: PnlState }) {
-  const { position, value, realized, total, pct } = pnl;
+  const { position, invested, sold, held, value, total, pct, avgEntryMcap } = pnl;
   const flash = useFlash(value, 0.01);
   const [history, setHistory] = useState<number[]>([]);
   const last = useRef<number | null>(null);
@@ -111,17 +148,6 @@ export function LivePnlCard({ live, ticker, pnl }: { live: MarketToken | undefin
     setHistory((h) => [...h, total].slice(-MAX_POINTS));
   }, [total]);
 
-  let sellNow: number | null = null;
-  if (live && live.endedAt === null && position) {
-    try {
-      const amount = Math.min(position.tokenAmount, tokensSold(live.curve));
-      if (amount > 0) sellNow = quoteTrade(live.curve, live.price / spotPrice(live.curve), "sell", amount).solAmount;
-    } catch {
-      sellNow = null;
-    }
-  }
-
-  const avgEntryMcap = position ? (position.costBasisSol / position.tokenAmount) * CURVE.totalSupply : null;
   const tone = total > 0 ? "text-pump" : total < 0 ? "text-rug" : "text-muted";
 
   return (
@@ -159,32 +185,23 @@ export function LivePnlCard({ live, ticker, pnl }: { live: MarketToken | undefin
       </div>
 
       <dl className="mt-3 space-y-1.5 text-sm">
-        {position ? (
-          <>
-            <Row label="Holding">
-              {formatTokens(position.tokenAmount)} ${ticker}
-            </Row>
-            <Row label="Avg entry">{avgEntryMcap !== null ? `${formatUsd(avgEntryMcap)} MC` : "—"}</Row>
-            <Row label="Value now">{formatSol(value)} SOL</Row>
-            <Row label="Cost">{formatSol(position.costBasisSol)} SOL</Row>
-          </>
-        ) : (
-          <Row label="Position">closed</Row>
-        )}
-        {realized !== 0 && (
-          <Row label="Realized">
-            <span className={realized > 0 ? "text-pump" : "text-rug"}>
-              {realized > 0 ? "+" : "−"}
-              {formatSol(Math.abs(realized))} SOL
-            </span>
+        <Row label="Avg entry">{avgEntryMcap !== null ? `${formatUsd(avgEntryMcap)} MC` : "—"}</Row>
+        <Row label="Invested">{formatSol(invested)} SOL</Row>
+        <Row label="Sold">{formatSol(sold)} SOL</Row>
+        <Row label="Held" hint={position ? `${formatTokens(position.tokenAmount)} $${ticker}` : "none"}>
+          {formatSol(held)} SOL
+        </Row>
+        <div className="border-t border-line pt-1.5">
+          <Row label="Value" hint="sold + held" strong>
+            {formatSol(value)} SOL
           </Row>
-        )}
-        {sellNow !== null && (
-          <Row label="Sell all now">
-            <span className="text-text">≈ {formatSol(sellNow)} SOL</span>
-          </Row>
-        )}
+        </div>
       </dl>
+      {position && live && live.endedAt === null && (
+        <p className="mt-2 text-[11px] text-muted">
+          Held = what selling it all right now would return, after fees and price impact.
+        </p>
+      )}
     </section>
   );
 }

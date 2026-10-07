@@ -1,5 +1,5 @@
 import type { Callout, Candle, PriceTick, TokenStatusChange, TokenSummary, TradeEvent } from "@ruggedfun/shared";
-import { GRADUATION_PRICE } from "@ruggedfun/sim";
+import { createRng, GRADUATION_PRICE } from "@ruggedfun/sim";
 import { describe, expect, it } from "vitest";
 import { BotFlow, type BotOrder, type BotView } from "../src/bots";
 import { Market, TickerTakenError, TradeError, type MarketEvents, type MarketStore, type StoredToken } from "../src/market";
@@ -13,6 +13,16 @@ class MemoryStore implements MarketStore {
     if (this.takenTickers.has(token.summary.ticker)) throw new TickerTakenError();
     this.takenTickers.add(token.summary.ticker);
     this.tokens.set(token.summary.id, structuredClone(token));
+  }
+  async loadBotHoldings(tokenIds: string[]) {
+    const result = new Map<string, Map<string, number>>();
+    for (const t of this.trades) {
+      if (!tokenIds.includes(t.tokenId) || !t.isBot) continue;
+      const bag = result.get(t.tokenId) ?? new Map<string, number>();
+      bag.set(t.trader, (bag.get(t.trader) ?? 0) + (t.side === "buy" ? t.tokenAmount : -t.tokenAmount));
+      result.set(t.tokenId, bag);
+    }
+    return result;
   }
   async loadLive(): Promise<StoredToken[]> {
     return [...this.tokens.values()].filter((t) => t.summary.endedAt === null).map((t) => structuredClone(t));
@@ -62,20 +72,59 @@ function runToEnd(market: Market, from: number): number {
 
 const T0 = 1_700_000_000_000;
 
+/** Deterministic stand-in for Math.random, so bot flow is repeatable in tests. */
+function seededRandom(seed: string): () => number {
+  const rng = createRng(seed);
+  return () => rng.next();
+}
+
 describe("Market", () => {
-  it("launches a token, announces it and ticks its price", async () => {
+  it("launches a token and announces it", async () => {
     const store = new MemoryStore();
     const { log, events } = recorder();
     const market = new Market(store, events);
-
-    const token = await market.launch(T0);
+    await market.launch(T0);
     expect(log.launched).toHaveLength(1);
     expect(store.tokens.size).toBe(1);
+  });
 
-    market.tick(T0 + 500);
-    expect(log.ticks).toHaveLength(0);
-    market.tick(T0 + 1000);
-    expect(log.ticks).toEqual([[expect.objectContaining({ id: token.id })]]);
+  it("only moves a token's price in a second where it traded", async () => {
+    const { log, events } = recorder();
+    const market = new Market(new MemoryStore(), events, { bots: new BotFlow(6, seededRandom("moves")) });
+    const tokens = await Promise.all((["rug", "slow_death", "survive", "moon"] as const).map((fate) => market.launch(T0, { fate })));
+    let last = new Map(market.summaries().map((t) => [t.id, t.price]));
+
+    for (let s = 1; s <= 1200; s++) {
+      const tradesBefore = log.trades.length;
+      market.tick(T0 + s * 1000);
+      const tradedNow = new Set(log.trades.slice(tradesBefore).map((t) => t.tokenId));
+      for (const t of market.summaries()) {
+        if (t.price !== last.get(t.id)) expect(tradedNow.has(t.id)).toBe(true);
+      }
+      last = new Map(market.summaries().map((t) => [t.id, t.price]));
+    }
+    // And prices did move: the fate paths still play out through trades.
+    expect(log.ticks.length).toBeGreaterThan(50);
+    void tokens;
+  });
+
+  it("bots never sell more than they hold (only the creator can rug without a bag)", async () => {
+    const { log, events } = recorder();
+    const market = new Market(new MemoryStore(), events, { bots: new BotFlow(6, seededRandom("bags")) });
+    for (const fate of ["rug", "slow_death", "survive", "moon"] as const) await market.launch(T0, { fate });
+    runToEnd(market, T0);
+
+    const bags = new Map<string, number>();
+    for (const t of log.trades.filter((t) => t.isBot)) {
+      const key = `${t.tokenId}:${t.trader}`;
+      const next = (bags.get(key) ?? 0) + (t.side === "buy" ? t.tokenAmount : -t.tokenAmount);
+      if (!(t.isDev && t.side === "sell")) expect(next).toBeGreaterThan(-1e-3);
+      bags.set(key, next);
+    }
+    expect(log.trades.filter((t) => t.side === "sell").length).toBeGreaterThan(20);
+    // Creators hold until they rug: the rug token's creator sells once, the others never.
+    const devSells = log.trades.filter((t) => t.isDev && t.side === "sell");
+    expect(devSells).toHaveLength(1);
   });
 
   it("never exposes the seed or fate in summaries", async () => {
@@ -226,14 +275,19 @@ describe("Market", () => {
 
       const { quote } = market.quote(token.id, "buy", 1);
       expect(quote.avgPrice).toBeGreaterThan(before);
+      const candlesBefore = log.candles.length;
       market.commitTrade(fakeTrade(token, "buy", quote, T0 + 30_000), quote);
 
       const after = market.summaries()[0]!;
       expect(after.price).toBeCloseTo(quote.priceAfter, 15);
       expect(after.curve).toEqual(quote.curve);
-      expect(log.trades).toHaveLength(1);
+      expect(log.trades.filter((t) => t.trader === "tester")).toHaveLength(1);
       expect(log.ticks.at(-1)).toEqual([expect.objectContaining({ id: token.id, price: after.price })]);
-      expect(log.candles.at(-1)!.volume).toBeCloseTo(1, 9);
+      // The trade's candle gained exactly its 1 SOL of volume.
+      const added = log.candles.slice(candlesBefore);
+      const candle5s = added.filter((c) => c.interval === 5);
+      const prior = log.candles.slice(0, candlesBefore).filter((c) => c.interval === 5 && c.time === candle5s.at(-1)!.time);
+      expect(candle5s.at(-1)!.volume - (prior.at(-1)?.volume ?? 0)).toBeCloseTo(1, 9);
     });
 
     it("blocks buys after a rug but still allows sells", async () => {
@@ -344,9 +398,9 @@ describe("Market", () => {
       const token = await market.launch(T0);
       market.tick(T0 + 1000);
       market.tick(T0 + 2000);
-      const devTrades = log.trades.filter((t) => t.isDev);
-      expect(devTrades).toHaveLength(1);
-      expect(devTrades[0]).toMatchObject({ side: "buy", trader: token.creatorHandle, isBot: true });
+      const devBuys = log.trades.filter((t) => t.isDev && t.side === "buy");
+      expect(devBuys).toHaveLength(1);
+      expect(devBuys[0]).toMatchObject({ trader: token.creatorHandle, isBot: true });
     });
 
     it("restored and backdated tokens don't get a dev buy", async () => {
@@ -357,36 +411,32 @@ describe("Market", () => {
       expect(log.trades.some((t) => t.isDev)).toBe(false);
     });
 
-    it("bot trades add volume but never move the curve or the price", async () => {
+    it("bot trades add volume but never move the curve", async () => {
       const store = new MemoryStore();
       await new Market(store, recorder().events).launch(T0, { fate: "survive" });
       const { log, events } = recorder();
       const withBots = new Market(store, events, { bots: new ScriptedBots(buyEach(10)) });
-      const without = new Market(store, recorder().events);
       await withBots.restore(T0);
-      await without.restore(T0);
+      const curveBefore = withBots.summaries()[0]!.curve;
 
-      for (let s = 1; s <= 60; s++) {
-        withBots.tick(T0 + s * 1000);
-        without.tick(T0 + s * 1000);
-      }
-      const a = withBots.summaries()[0]!;
-      const b = without.summaries()[0]!;
-      expect(log.trades).toHaveLength(60);
-      expect(a.price).toBe(b.price);
-      expect(a.curve).toEqual(b.curve);
-      expect(a.volume5m).toBeCloseTo(600, 9);
+      for (let s = 1; s <= 60; s++) withBots.tick(T0 + s * 1000);
+      const token = withBots.summaries()[0]!;
+      expect(log.trades.length).toBeGreaterThanOrEqual(60);
+      expect(token.curve).toEqual(curveBefore);
+      expect(token.volume5m).toBeCloseTo(log.trades.reduce((sum, t) => sum + t.solAmount, 0), 9);
     });
 
     it("volume5m forgets trades older than five minutes", async () => {
       let calls = 0;
+      const { log, events } = recorder();
       const bots = new ScriptedBots((views) => (++calls <= 10 ? buyEach(1)(views) : []));
-      const market = new Market(new MemoryStore(), recorder().events, { bots });
+      const market = new Market(new MemoryStore(), events, { bots });
       await market.launch(T0, { fate: "survive", backdateMs: 1 });
       for (let s = 1; s <= 10; s++) market.tick(T0 + s * 1000);
-      expect(market.summaries()[0]!.volume5m).toBeCloseTo(10, 9);
+      expect(market.summaries()[0]!.volume5m).toBeCloseTo(log.trades.reduce((sum, t) => sum + t.solAmount, 0), 9);
       market.tick(T0 + 400_000);
-      expect(market.summaries()[0]!.volume5m).toBe(0);
+      const recent = log.trades.filter((t) => t.at > T0 + 100_000).reduce((sum, t) => sum + t.solAmount, 0);
+      expect(market.summaries()[0]!.volume5m).toBeCloseTo(recent, 9);
     });
 
     it("persists bot trades on flush", async () => {
@@ -404,9 +454,12 @@ describe("Market", () => {
       const market = new Market(new MemoryStore(), events, { bots: new ScriptedBots(() => []) });
       const token = await market.launch(T0, { fate: "rug" });
       runToEnd(market, T0);
-      const dump = log.trades.find((t) => t.isDev && t.side === "sell");
+      // Creators sell into ordinary dips too; the rug is the dev sell that crashes the price.
+      const devSells = log.trades.filter((t) => t.isDev && t.side === "sell");
+      const dump = devSells.reduce((a, b) => (b.price / b.priceAfter > a.price / a.priceAfter ? b : a));
       expect(dump).toMatchObject({ trader: token.creatorHandle, isBot: true });
-      expect(dump!.price / dump!.priceAfter).toBeGreaterThan(10);
+      // The dump fills on the way down, well above where the price ends up.
+      expect(dump!.price / dump!.priceAfter).toBeGreaterThan(3);
     });
 
     it("big bot buys make the hot ticker; small ones don't", async () => {
@@ -417,8 +470,9 @@ describe("Market", () => {
       const m2 = new Market(new MemoryStore(), small.events, { bots: new ScriptedBots(buyEach(1)) });
       await m1.launch(T0, { backdateMs: 1 });
       await m2.launch(T0, { backdateMs: 1 });
-      m1.tick(T0 + 1000);
-      m2.tick(T0 + 1000);
+      // At launch the price is exactly on its path, so these are plain-flow buys of the scripted size.
+      m1.tick(T0);
+      m2.tick(T0);
       expect(big.log.callouts.some((c) => c.kind === "whale" && c.text.startsWith("🐋 whale_bot aped 6.0 SOL"))).toBe(true);
       expect(small.log.callouts.some((c) => c.kind === "whale")).toBe(false);
     });

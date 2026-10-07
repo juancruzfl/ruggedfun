@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatSol } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
+import { positionValue } from "@/lib/positionValue";
 import { useNotifications, type PositionAlert } from "@/lib/notifications";
 import { useQuickTrade } from "@/lib/quickTrade";
 import { sounds } from "@/lib/sound";
@@ -51,7 +52,7 @@ function usePositionAlertWatcher() {
         held.add(p.tokenId);
         const token = tokens[p.tokenId];
         if (!token || token.endedAt !== null || p.costBasisSol <= 0) continue;
-        const valueSol = p.tokenAmount * token.price;
+        const valueSol = positionValue(p.tokenAmount, token, p.lastPrice);
         const result = evaluateAlert(states.get(p.tokenId), p.costBasisSol, valueSol / p.costBasisSol - 1, now);
         states.set(p.tokenId, result.state);
         if (result.fire === null) continue;

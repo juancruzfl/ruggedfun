@@ -107,8 +107,9 @@ config so they're easy to tune.
 ---
 
 ### 3.7 Engine implementation notes (milestone 2)
-- **Price = fate multiple × bonding-curve spot price.** The fate path moves the multiple; player and bot
-  trades (milestones 5–6) move the curve, so their impact stacks on top of the fate.
+- **Price = display multiple × bonding-curve spot price, and it only changes when a trade happens.**
+  The fate path sets a *target* multiple every second. Bot trades pull the displayed price to the target
+  (see 7.1); player trades move the curve. No trade, no price change.
 - **Clock-driven:** each token's tick = seconds since `created_at`, so timer drift and restarts don't skew paths.
 - **Restarts:** live tokens are reloaded and replayed from their seed + fate. The fate is always rolled
   (even when forced) so a token's path depends only on its seed and fate.
@@ -207,16 +208,20 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 ### 6.2 Token page (`/token/[ticker]`)
 - Header: avatar, name, ticker, status, creator, age, description
 - **Market card** (above the chart): market cap as the headline with its 5m change chip, an ATH bar showing
-  how far below the all-time high it is, and a strip of Price · 1m · 5m · 5m volume · total volume
+  how far below the all-time high it is, and a strip of Price · Liquidity · Holders · 1m · 5m · 5m vol ·
+  24h vol · Total vol. Liquidity = the SOL side of the curve's pool (price × virtual token reserves), the
+  same depth that sets price impact
 - Candlestick chart (1s / 5s / 1m intervals, market cap in USD on a log scale)
 - Right column: **trade panel**, then **Your PnL** (when you hold or have traded the token), then a
   **bonding curve card** (progress, market cap left to graduate, graduation market cap, tokens left on the
   curve; "Graduated" / "Rugged" / "Trading stopped" states)
-- **Your PnL** (live): total = unrealized (held tokens at the live price) + realized (profit already taken).
-  % is against everything put in (cost still held + cost of tokens sold). Shows a PnL line since the page
-  opened, holding, average entry (as a market cap), value now, cost, realized, and "sell all now", the
-  exact quote after price impact and fees
-- **Activity tabs** below: **Trades** | **Holders** | **Callouts** (coming soon)
+- **Your PnL** (live), as cash in vs. cash out: **Avg entry** (market cap paid across all buys),
+  **Invested** (SOL spent on buys), **Sold** (SOL received from sells), **Held** (what the tokens still held
+  would sell for right now, after fees and price impact), **Value = Sold + Held**.
+  PnL = Value − Invested, % = PnL ÷ Invested. Plus a PnL line since the page opened
+- **Activity tabs** below: **Trades** | **Holders**, with a **live chat** beside them (simulated: generated in
+  the browser from what the token is doing, mostly voiced by its recent traders; your messages show only for
+  you). The holder count refreshes every 10s and is shared with the market card
   - Trades show trader, type, **MC** (market cap at the trade's fill price), SOL, token amount, age
   - Holders = each trader's net buys minus sells (bots included), top 20 with % of supply and value, your
     own row pinned below if you're outside the top 20; refreshed every 10s while open. Bot trades are
@@ -284,15 +289,23 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 
 ---
 
-### 7.1 Bot implementation notes (milestone 6)
-- **Bots don't move the curve.** The fate path already *is* the aggregate of everyone else's trading, so bot
-  trades are the visible flow behind it: recorded at the current price, counted in volume, candles, trending
-  and the feed, but they don't touch reserves. Only players move the curve. This keeps the fate odds intact.
+### 7.1 Bot implementation notes (milestone 6, reworked later)
+- **Prices only move with trades.** Each token's displayed price stays put until a trade. When a bot trades
+  a token whose displayed price is off its fate path (by 0.5%+), that trade *is* the move: its side and size
+  come from the move (`flowForMove` in `packages/sim`), and the price jumps to the path.
+  A gap of 5%+ forces a trade (at most 6 forced trades/second, biggest gaps first, so quiet tokens lag a
+  little); rugs always trade immediately.
+- **Bots don't move the curve.** The fate path already *is* the aggregate of everyone else's trading.
+  Only players move the curve, which keeps the fate odds intact.
+- **Bots only sell what they hold.** The engine tracks each bot's bag per token (rebuilt from the trades
+  table on restart). Sells come from holders, bigger bags more likely, never more than the bag. If a drop has
+  no holder to sell into, the trade becomes a plain buy and that buyer can sell next. Creators hold until
+  they rug; the rug is the creator selling their bag.
 - **Flow model** (`apps/engine/src/bots.ts`, `BOT_TUNING`): each token attracts trades by youth, 5-second
   momentum and size; buys lean with momentum (15–85%); sizes are log-normal (median 0.3 SOL, capped at 50).
   A global budget (`BOT_TRADES_PER_SECOND`, default 6) caps the total.
-- **Dev:** the creator buys 0.5–3 SOL right after launch and dumps ~15% of the ATH market cap at the rug
-  (shown as "RUG" with a DEV badge). Restored and backdated tokens don't get a dev buy.
+- **Dev:** the creator buys 0.5–3 SOL right after launch and sells that bag at the rug, which crashes the
+  price to the path (shown as "RUG" with a DEV badge). Restored and backdated tokens don't get a dev buy.
 - **After a rug:** only small panic sells. Dead tokens get no trades.
 - **Callouts:** bot buys ≥ 5 SOL (🐋) and player buys ≥ 0.5 SOL (👤) go to the hot ticker.
 - **Storage:** bot trades are batched into the 5-second flush; they're pruned a day after their token ends.
@@ -307,7 +320,10 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 - Only players who have traded appear (on the wall of shame: only players who've been rugged)
 
 ### 8.1 Definitions
-- **Net worth** = SOL balance + positions at the last stored price (dead/rugged tokens keep their final price)
+- **Net worth** = SOL balance + what each position would sell for right now (price impact and fee included;
+  `liquidationValue` in `packages/sim`, mirrored in SQL). Not tokens × price: on a thin curve a player's own
+  buy inflates the price, and that isn't money they can take out. Tokens that stopped trading keep their
+  last price
 - **All-time PnL** = net worth − 10 SOL starting balance
 - **24h PnL** = net worth − the newest snapshot at least 24h old (or 10 SOL for younger accounts).
   The engine snapshots every player's net worth every 10 minutes and keeps 48 hours of them

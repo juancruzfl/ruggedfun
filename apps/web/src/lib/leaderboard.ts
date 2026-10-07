@@ -1,5 +1,6 @@
 import "server-only";
 import { STARTING_SOL } from "@ruggedfun/shared";
+import { CURVE } from "@ruggedfun/sim";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 
@@ -68,6 +69,17 @@ async function compute(tab: LeaderboardTab): Promise<LeaderboardRows> {
 const rank = <T>(rows: T[]) => rows.map((row, i) => ({ ...row, rank: i + 1 }));
 
 /**
+ * SQL twin of positionValue / liquidationValue (packages/sim): what position `p` in token `t`
+ * would sell for right now. Tokens that stopped trading keep their last price.
+ */
+const sellable = sql`least(p.token_amount, ${CURVE.curveTokens} - t.tokens_left)`;
+const positionValueSql = sql`case
+  when t.ended_at is null then greatest(0, t.price * t.virtual_tokens * ${sellable} / (t.virtual_tokens + ${sellable}))
+                               * ${1 - CURVE.feeBps / 10_000}
+  else p.token_amount * t.price
+end`;
+
+/**
  * Net worth = SOL + positions at the last stored price (dead tokens keep their final price).
  * All-time PnL is against the starting balance; 24h PnL is against the newest snapshot that is at
  * least 24 hours old, or the starting balance for accounts younger than that.
@@ -76,7 +88,7 @@ async function pnlRows(windowHours: number | null): Promise<PnlRow[]> {
   const since = windowHours === null ? null : new Date(Date.now() - windowHours * 3600_000).toISOString();
   const rows = (await db.execute(sql`
     with worth as (
-      select u.id, u.username, w.sol_balance + coalesce(sum(p.token_amount * t.price), 0) as net_worth
+      select u.id, u.username, w.sol_balance + coalesce(sum(${positionValueSql}), 0) as net_worth
       from users u
       join wallets w on w.user_id = u.id
       left join positions p on p.user_id = u.id

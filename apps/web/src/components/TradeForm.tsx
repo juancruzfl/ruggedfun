@@ -13,11 +13,14 @@ const SELL_PRESETS = [0.25, 0.5, 0.75, 1] as const;
 /** Buy/sell form. `fixedSide` hides the tabs (the quick-trade modal is one side at a time). */
 export function TradeForm({
   tokenId,
+  ticker: tickerProp,
   fixedSide,
   autoFocus = false,
   onDone,
 }: {
   tokenId: string;
+  /** Shown when the token isn't in the live market (it stopped trading). */
+  ticker?: string;
   fixedSide?: TradeSide;
   autoFocus?: boolean;
   onDone?: () => void;
@@ -48,7 +51,8 @@ export function TradeForm({
     }
   }
 
-  const unit = side === "buy" ? "SOL" : `$${token?.ticker ?? ""}`;
+  const ticker = token?.ticker ?? tickerProp ?? "";
+  const unit = side === "buy" ? "SOL" : `$${ticker}`;
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
@@ -134,7 +138,7 @@ export function TradeForm({
           <dd className="font-mono font-semibold">
             {quote
               ? side === "buy"
-                ? `≈ ${formatTokens(quote.tokenAmount)} $${token?.ticker}`
+                ? `≈ ${formatTokens(quote.tokenAmount)} $${ticker}`
                 : `≈ ${formatSol(quote.solAmount)} SOL`
               : "—"}
           </dd>
@@ -162,7 +166,7 @@ export function TradeForm({
           side === "buy" ? "bg-pump" : "bg-rug"
         }`}
       >
-        {pending ? "Sending…" : side === "buy" ? `Buy $${token?.ticker ?? ""}` : `Sell $${token?.ticker ?? ""}`}
+        {pending ? "Sending…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
       </button>
     </form>
   );
