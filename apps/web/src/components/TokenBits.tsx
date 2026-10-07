@@ -31,7 +31,7 @@ export function StatusBadge({ status }: { status: TokenStatus }) {
 }
 
 export function Change({ value, className = "" }: { value: number; className?: string }) {
-  const color = value > 0.0005 ? "text-pump" : value < -0.0005 ? "text-rug" : "text-muted";
+  const color = value >= 0.0005 ? "text-pump" : value <= -0.0005 ? "text-rug" : "text-muted";
   return <span className={`font-mono ${color} ${className}`}>{formatPct(value)}</span>;
 }
 

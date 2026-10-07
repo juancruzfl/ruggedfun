@@ -13,6 +13,14 @@ describe("generateTokenMeta", () => {
     }
   });
 
+  it("never uses excluded words", () => {
+    const rng = createRng("excluded");
+    for (let i = 0; i < 5000; i++) {
+      const meta = generateTokenMeta(rng);
+      expect(`${meta.creatorHandle} ${meta.name} ${meta.description}`.toLowerCase()).not.toContain("jeet");
+    }
+  });
+
   it("adds digits on retry attempts", () => {
     expect(generateTokenMeta(createRng("x"), 2).ticker).toMatch(/\d{3}$/);
   });

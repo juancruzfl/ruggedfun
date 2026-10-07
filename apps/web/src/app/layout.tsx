@@ -6,6 +6,7 @@ import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { MarketConnection } from "@/components/MarketConnection";
 import { MomentOverlay } from "@/components/MomentOverlay";
 import { OnboardingModal } from "@/components/OnboardingModal";
+import { PositionAlerts } from "@/components/PositionAlerts";
 import { QuickTradeModal } from "@/components/QuickTradeModal";
 import { SessionProvider } from "@/components/SessionProvider";
 import { MobileNav } from "@/components/MainNav";
@@ -42,6 +43,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </div>
             <MobileNav />
             <CalloutTicker />
+            <PositionAlerts />
             <QuickTradeModal />
             <MomentOverlay />
             <OnboardingModal />

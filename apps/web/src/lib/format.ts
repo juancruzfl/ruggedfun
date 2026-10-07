@@ -23,6 +23,8 @@ export function priceParts(price: number): { zeros: number; digits: string } {
 /** 0.123 → "+12.3%", 12.5 → "+1,250%". */
 export function formatPct(fraction: number): string {
   const pct = fraction * 100;
+  // Anything that would print as ±0.0% is just flat (no red "-0.0%").
+  if (Math.abs(pct) < 0.05) return "0.0%";
   const sign = pct > 0 ? "+" : "";
   if (Math.abs(pct) >= 1000) return `${sign}${Math.round(pct).toLocaleString("en-US")}%`;
   return `${sign}${pct.toFixed(1)}%`;

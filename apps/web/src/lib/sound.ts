@@ -98,6 +98,13 @@ export const sounds = {
     notes.forEach((f, i) => note(ac, { from: f, at: i * 0.38, length: 0.36, type: "sawtooth", volume: 0.07 }));
     note(ac, { from: 330, to: 311, at: notes.length * 0.38, length: 1.1, type: "sawtooth", volume: 0.07, vibrato: 8 });
   },
+  /** Soft two-note ding for position alerts. */
+  alert() {
+    const ac = audio();
+    if (!ac) return;
+    note(ac, { from: 988, length: 0.18, type: "triangle", volume: 0.08 });
+    note(ac, { from: 1319, at: 0.12, length: 0.3, type: "triangle", volume: 0.08 });
+  },
   /** Rising arpeggio and a sparkle. */
   moon() {
     const ac = audio();

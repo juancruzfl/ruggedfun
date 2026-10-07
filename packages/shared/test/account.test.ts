@@ -17,5 +17,6 @@ describe("validateUsername", () => {
   it("rejects blocked words in any case", () => {
     expect(validateUsername("RuggedFun_Admin")).not.toBeNull();
     expect(validateUsername("xxHITLERxx")).not.toBeNull();
+    expect(validateUsername("big_Jeet9")).not.toBeNull();
   });
 });

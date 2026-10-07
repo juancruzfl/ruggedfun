@@ -25,7 +25,7 @@ const DESCRIPTIONS = [
 ];
 
 const HANDLE_WORDS = [
-  "degen", "ape", "whale", "anon", "sol", "pump", "chad", "rekt", "moon", "jeet", "fren", "gm", "wagmi",
+  "degen", "ape", "whale", "anon", "sol", "pump", "chad", "rekt", "moon", "hodl", "fren", "gm", "wagmi",
   "ngmi", "bags", "diamond", "paper", "sniper", "dev", "larp",
 ];
 

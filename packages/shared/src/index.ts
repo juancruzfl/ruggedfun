@@ -113,3 +113,4 @@ export interface ClientToServerEvents {
 export * from "./account";
 export * from "./market";
 export * from "./trading";
+export * from "./alerts";

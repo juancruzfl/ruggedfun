@@ -56,7 +56,7 @@ export function WalletChip() {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 text-sm transition hover:border-pump/50"
+        className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-panel px-3 py-1.5 text-sm transition hover:border-pump/50"
       >
         <span className="font-mono font-semibold text-pump">{formatSol(me.wallet.solBalance)} SOL</span>
         <span className="hidden text-muted xl:inline">@{me.user.username}</span>

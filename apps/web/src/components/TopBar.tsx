@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopNav } from "./MainNav";
+import { NotificationBell } from "./NotificationBell";
 import { SearchBar } from "./SearchBar";
 import { SoundToggle } from "./SoundToggle";
 import { WalletChip } from "./WalletChip";
@@ -16,10 +17,13 @@ export function TopBar() {
           </span>
         </Link>
         <TopNav />
-        <div className="flex min-w-40 flex-1 justify-end lg:justify-center">
+        <div className="flex min-w-24 flex-1 justify-end md:min-w-40 lg:justify-center">
           <SearchBar />
         </div>
-        <SoundToggle />
+        <div className="flex shrink-0 items-center gap-1">
+          <NotificationBell />
+          <SoundToggle />
+        </div>
         <WalletChip />
       </div>
     </header>

@@ -6,7 +6,7 @@ export const USERNAME_MAX = 16;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 
 // Substring match, so keep entries specific enough not to block normal names.
-const BLOCKED = ["nigg", "fag", "retard", "rape", "nazi", "hitler", "kike", "tranny", "cunt", "admin", "moderator", "ruggedfun"];
+const BLOCKED = ["nigg", "fag", "retard", "rape", "nazi", "hitler", "kike", "tranny", "cunt", "jeet", "admin", "moderator", "ruggedfun"];
 
 /** Returns an error message, or null if the username is acceptable. Uniqueness is checked by the server. */
 export function validateUsername(username: string): string | null {

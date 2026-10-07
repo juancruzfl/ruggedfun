@@ -1,7 +1,7 @@
 import "server-only";
 import { candles, tokens, trades, users } from "@ruggedfun/db";
 import type { CandleInterval, TokenSummary, TradeEvent } from "@ruggedfun/shared";
-import { bondingProgress } from "@ruggedfun/sim";
+import { bondingProgress, CURVE } from "@ruggedfun/sim";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "./db";
 
@@ -177,4 +177,74 @@ export async function getVolumeSol(tokenId: string): Promise<number> {
     .from(trades)
     .where(eq(trades.tokenId, tokenId));
   return row?.volume ?? 0;
+}
+
+export interface Holder {
+  rank: number;
+  trader: string;
+  isBot: boolean;
+  isDev: boolean;
+  tokenAmount: number;
+  /** Share of the total token supply, 0–1. */
+  supplyShare: number;
+}
+
+const HOLDER_DUST_TOKENS = 1;
+
+/**
+ * Top holders: each trader's net buys minus sells (bots included, since their flow is the market).
+ * Bot trades are pruned a day after a token ends, so old tokens lose their bot holders.
+ */
+export async function getHolders(
+  tokenId: string,
+  options: { limit?: number; me?: string } = {},
+): Promise<{ holders: Holder[]; count: number; mine: Holder | null }> {
+  const limit = options.limit ?? 20;
+  const rows = (await db.execute(sql`
+    with net as (
+      select coalesce(u.username, tr.bot_handle) as trader,
+             bool_and(tr.user_id is null) as is_bot,
+             sum(case when tr.side = 'buy' then tr.token_amount else -tr.token_amount end)::float8 as amount
+      from trades tr
+      left join users u on u.id = tr.user_id
+      where tr.token_id = ${tokenId}::uuid
+      group by 1
+    ),
+    ranked as (
+      select net.trader, net.is_bot, net.amount, net.trader = t.creator_handle and net.is_bot as is_dev,
+             row_number() over (order by net.amount desc)::int as rank,
+             count(*) over ()::int as total
+      from net, tokens t
+      where t.id = ${tokenId}::uuid and net.trader is not null and net.amount > ${HOLDER_DUST_TOKENS}
+    )
+    select * from ranked
+    where rank <= ${limit} or (${options.me ?? null}::text is not null and trader = ${options.me ?? null} and not is_bot)
+    order by rank
+  `)) as unknown as { trader: string; is_bot: boolean; amount: number; is_dev: boolean; rank: number; total: number }[];
+
+  const holders = rows.map((r) => ({
+    rank: r.rank,
+    trader: r.trader,
+    isBot: r.is_bot,
+    isDev: r.is_dev,
+    tokenAmount: r.amount,
+    supplyShare: r.amount / CURVE.totalSupply,
+  }));
+  const mine = holders.find((h) => h.rank > limit) ?? null;
+  return { count: rows[0]?.total ?? 0, holders: holders.filter((h) => h.rank <= limit), mine };
+}
+
+/**
+ * Profit already taken on a token by one player, and the cost basis of the tokens they sold
+ * (so PnL % can be measured against everything they put in, not just what's still held).
+ */
+export async function getRealizedPnl(userId: string, tokenId: string): Promise<{ realized: number; soldCost: number }> {
+  const [row] = await db
+    .select({
+      realized: sql<number>`coalesce(sum(${trades.realizedPnlSol}), 0)::float8`,
+      soldCost: sql<number>`coalesce(sum(${trades.solAmount} - ${trades.realizedPnlSol}), 0)::float8`,
+    })
+    .from(trades)
+    .where(and(eq(trades.userId, userId), eq(trades.tokenId, tokenId), sql`${trades.realizedPnlSol} is not null`));
+  return { realized: row?.realized ?? 0, soldCost: row?.soldCost ?? 0 };
 }

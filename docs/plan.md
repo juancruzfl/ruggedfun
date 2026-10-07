@@ -205,12 +205,23 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 3. **Search** → pick a result → token page
 
 ### 6.2 Token page (`/token/[ticker]`)
-- Candlestick chart (1s / 5s / 1m intervals)
-- Stats: price, market cap, holders, volume, bonding-curve progress, age
-- **Trade panel**: Buy/Sell tabs, SOL amount input, presets (0.1 / 0.5 / 1 / max), estimated tokens out,
-  slippage note
-- Token-specific trade feed
-- Holder list (fake + real users)
+- Header: avatar, name, ticker, status, creator, age, description
+- **Market card** (above the chart): market cap as the headline with its 5m change chip, an ATH bar showing
+  how far below the all-time high it is, and a strip of Price · 1m · 5m · 5m volume · total volume
+- Candlestick chart (1s / 5s / 1m intervals, market cap in USD on a log scale)
+- Right column: **trade panel**, then **Your PnL** (when you hold or have traded the token), then a
+  **bonding curve card** (progress, market cap left to graduate, graduation market cap, tokens left on the
+  curve; "Graduated" / "Rugged" / "Trading stopped" states)
+- **Your PnL** (live): total = unrealized (held tokens at the live price) + realized (profit already taken).
+  % is against everything put in (cost still held + cost of tokens sold). Shows a PnL line since the page
+  opened, holding, average entry (as a market cap), value now, cost, realized, and "sell all now", the
+  exact quote after price impact and fees
+- **Activity tabs** below: **Trades** | **Holders** | **Callouts** (coming soon)
+  - Trades show trader, type, **MC** (market cap at the trade's fill price), SOL, token amount, age
+  - Holders = each trader's net buys minus sells (bots included), top 20 with % of supply and value, your
+    own row pinned below if you're outside the top 20; refreshed every 10s while open. Bot trades are
+    pruned a day after a token ends, so finished tokens lose their bot holders
+- Phones and tablets get a sticky Buy / Sell bar, with your PnL above it when you hold the token
 
 ### 6.3 Quick-buy modal
 - Lightweight version of the trade panel for buying without leaving the page
@@ -251,6 +262,19 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
   arpeggio on moons. The 🔊 toggle is remembered per browser. Browsers stay silent until the first click.
 - Shake and emoji rain are skipped for people who prefer reduced motion.
 - The quick-buy modal became a quick-trade modal (`useQuickTrade.open(tokenId, "buy" | "sell")`).
+
+### 6.9 Position alerts
+- Each time a position you hold crosses a new **+5% step** over your average cost (+5%, +10%, +15%, …),
+  you get one alert: a card in the top-right (Sell / View, auto-hides after 8s, pauses on hover), a soft
+  ding (respects mute), and an entry under the 🔔 bell with an unread count.
+- A big jump fires one alert for the highest step reached; at most one alert per token per 10s.
+  Dipping and recovering doesn't repeat an alert. Losses never alert.
+- The baseline is set when you buy, or when you open the site already holding, so old milestones aren't
+  replayed. Buying more or selling part resets it to the new average cost.
+- Bell settings (remembered per browser): position alerts on/off, and desktop notifications (asks the
+  browser for permission; only used when the tab is in the background).
+- Alerts only run while the site is open in a tab; there's no push when it's closed.
+- Trigger logic: `evaluateAlert` in `packages/shared/src/alerts.ts` (unit tested).
 
 ## 7. Live Feed (`/feed`)
 - Real-time stream of every trade (users + bots), newest on top, capped at ~200 rows in the DOM
