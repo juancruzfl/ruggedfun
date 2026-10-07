@@ -1,20 +1,25 @@
 "use client";
 
 import { randomUsername, STARTING_SOL, USERNAME_MAX, validateUsername, type Me } from "@ruggedfun/shared";
+import { usePathname } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Logo } from "./Logo";
 import { useSession } from "./SessionProvider";
 import { useToast } from "./Toaster";
 
+/** Pages anyone can read without an account, so the legal terms are visible before signing up. */
+const PUBLIC_PATHS = new Set(["/terms", "/privacy"]);
+
 /** Blocks the site until the visitor picks a username, then creates their play-money wallet. */
 export function OnboardingModal() {
+  const pathname = usePathname();
   const { me, setMe } = useSession();
   const toast = useToast();
   const [username, setUsername] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (me) return null;
+  if (me || PUBLIC_PATHS.has(pathname)) return null;
 
   const trimmed = username.trim();
   const validationError = trimmed ? validateUsername(trimmed) : null;
