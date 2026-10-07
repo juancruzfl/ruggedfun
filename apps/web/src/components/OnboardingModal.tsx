@@ -2,6 +2,7 @@
 
 import { randomUsername, STARTING_SOL, USERNAME_MAX, validateUsername, type Me } from "@ruggedfun/shared";
 import { useState, type FormEvent } from "react";
+import { Logo } from "./Logo";
 import { useSession } from "./SessionProvider";
 import { useToast } from "./Toaster";
 
@@ -53,9 +54,7 @@ export function OnboardingModal() {
         onSubmit={onSubmit}
         className="w-full max-w-sm rounded-2xl border border-line bg-panel p-6 shadow-2xl shadow-black/60"
       >
-        <div className="mb-1 text-3xl" aria-hidden>
-          💊
-        </div>
+        <Logo className="mb-1 size-9" />
         <h1 id="onboarding-title" className="text-xl font-bold">
           Welcome to ruggedfun
         </h1>
