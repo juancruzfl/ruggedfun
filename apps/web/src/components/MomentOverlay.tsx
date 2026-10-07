@@ -1,5 +1,6 @@
 "use client";
 
+import confetti from "canvas-confetti";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPct, formatSol } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
@@ -51,7 +52,10 @@ function useRugWatcher() {
         if (!now || !before) continue;
         if (pending.has(p.tokenId) && now.price !== before.price) reveal(p.tokenId);
         else if (now.status === "rugged" && before.status !== "rugged") {
-          pending.set(p.tokenId, setTimeout(() => reveal(p.tokenId), 2000));
+          pending.set(
+            p.tokenId,
+            setTimeout(() => reveal(p.tokenId), 2000),
+          );
         }
       }
     });
@@ -60,6 +64,19 @@ function useRugWatcher() {
       pending.forEach(clearTimeout);
     };
   }, [show]);
+}
+
+const CONFETTI_COLORS = ["#4ade80", "#fcd34d", "#ffffff", "#38bdf8"];
+
+/** Confetti cannons from both bottom corners, then a burst from the middle. Above the overlay (z-50). */
+function celebrate() {
+  const base = { colors: CONFETTI_COLORS, zIndex: 60, disableForReducedMotion: true, ticks: 220 };
+  void confetti({ ...base, particleCount: 80, angle: 60, spread: 60, startVelocity: 60, origin: { x: 0, y: 0.9 } });
+  void confetti({ ...base, particleCount: 80, angle: 120, spread: 60, startVelocity: 60, origin: { x: 1, y: 0.9 } });
+  setTimeout(
+    () => void confetti({ ...base, particleCount: 120, spread: 100, startVelocity: 45, origin: { y: 0.45 } }),
+    250,
+  );
 }
 
 function shareText(m: Moment): string {
@@ -91,18 +108,22 @@ export function MomentOverlay() {
     [current],
   );
 
+  const [shaking, setShaking] = useState(false);
+
   useEffect(() => {
     if (!current) return;
     setCopied(false);
     closeRef.current?.focus();
-    const root = document.documentElement;
-    root.classList.add("animate-screen-shake");
-    const timer = setTimeout(() => root.classList.remove("animate-screen-shake"), SHAKE_MS);
+    // Shake the overlay itself, never the page: a transform on <html> re-anchors every fixed
+    // element (this overlay included) to the top of the document, so a scrolled-down player
+    // would see the popup jump off-screen.
+    setShaking(true);
+    const timer = setTimeout(() => setShaking(false), SHAKE_MS);
+    if (current.kind === "moon") celebrate();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && dismiss();
     document.addEventListener("keydown", onKey);
     return () => {
       clearTimeout(timer);
-      root.classList.remove("animate-screen-shake");
       document.removeEventListener("keydown", onKey);
     };
   }, [current, dismiss]);
@@ -126,7 +147,11 @@ export function MomentOverlay() {
   return (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center overflow-hidden px-4 backdrop-blur-sm ${
-        rug ? "bg-[radial-gradient(circle,rgba(244,63,94,0.35),rgba(0,0,0,0.92))]" : "bg-[radial-gradient(circle,rgba(74,222,128,0.3),rgba(0,0,0,0.9))]"
+        shaking ? "animate-screen-shake" : ""
+      } ${
+        rug
+          ? "bg-[radial-gradient(circle,rgba(244,63,94,0.35),rgba(0,0,0,0.92))]"
+          : "bg-[radial-gradient(circle,rgba(74,222,128,0.3),rgba(0,0,0,0.9))]"
       }`}
       onMouseDown={(e) => e.target === e.currentTarget && dismiss()}
     >
@@ -135,7 +160,12 @@ export function MomentOverlay() {
           <span
             key={i}
             className="absolute -top-12 animate-emoji-fall"
-            style={{ left: `${d.left}%`, animationDelay: `${d.delay}s`, animationDuration: `${d.duration}s`, fontSize: `${d.size}rem` }}
+            style={{
+              left: `${d.left}%`,
+              animationDelay: `${d.delay}s`,
+              animationDuration: `${d.duration}s`,
+              fontSize: `${d.size}rem`,
+            }}
           >
             {d.emoji}
           </span>
@@ -162,11 +192,11 @@ export function MomentOverlay() {
         </h2>
         <p className="mt-1 text-sm text-muted">
           {rug ? (
-            <>
-              ${current.ticker} just got rugged by its dev.
-            </>
+            <>${current.ticker} just got rugged by its dev.</>
           ) : (
-            <>You {current.multiple.toFixed(1)}x&apos;d ${current.ticker}.</>
+            <>
+              You {current.multiple.toFixed(1)}x&apos;d ${current.ticker}.
+            </>
           )}
         </p>
         <p id="moment-detail" className={`mt-4 font-mono text-2xl font-bold ${rug ? "text-rug" : "text-pump"}`}>

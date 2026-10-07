@@ -3,9 +3,7 @@
 import type { MarketToken, PositionSummary } from "@ruggedfun/shared";
 import { CURVE } from "@ruggedfun/sim";
 import { useEffect, useRef, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { formatPct, formatSol, formatTokens, formatUsd } from "@/lib/format";
-import { useMarket } from "@/lib/marketStore";
 import { positionValue } from "@/lib/positionValue";
 import type { TokenFlows } from "@/lib/tokens";
 import { useFlash } from "./useFlash";
@@ -34,34 +32,15 @@ export interface PnlState {
  * The player's PnL on one token as cash in vs. cash out: Value (SOL already taken out by selling
  * plus what's held would sell for now) minus Invested (SOL put in). Held is valued at sell value,
  * not tokens × price: on a thin curve your own buy pushes the price up, and that isn't profit.
- * Flows come from the server render plus the player's own trades since.
+ * Flows = the server render's totals plus the player's own trades since (see useTokenTrades).
  */
 export function usePnl(
-  tokenId: string,
   live: MarketToken | undefined,
   lastPrice: number,
   position: PositionSummary | undefined,
-  username: string | undefined,
   initial: TokenFlows,
-  renderedAt: number,
+  session: TokenFlows,
 ): PnlState {
-  const session = useMarket(
-    useShallow((s) => {
-      let boughtSol = 0;
-      let boughtTokens = 0;
-      let soldSol = 0;
-      for (const t of s.trades) {
-        if (t.tokenId !== tokenId || t.isBot || t.trader !== username || t.at <= renderedAt) continue;
-        if (t.side === "buy") {
-          boughtSol += t.solAmount;
-          boughtTokens += t.tokenAmount;
-        } else {
-          soldSol += t.solAmount;
-        }
-      }
-      return { boughtSol, boughtTokens, soldSol };
-    }),
-  );
   const invested = initial.boughtSol + session.boughtSol;
   const boughtTokens = initial.boughtTokens + session.boughtTokens;
   const sold = initial.soldSol + session.soldSol;

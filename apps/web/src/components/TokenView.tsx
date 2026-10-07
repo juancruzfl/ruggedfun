@@ -8,6 +8,7 @@ import { useQuickTrade } from "@/lib/quickTrade";
 import type { ListedTrade, TokenFlows } from "@/lib/tokens";
 import { getSocket } from "@/lib/socket";
 import { useHolders } from "@/lib/useHolders";
+import { useTokenTrades } from "@/lib/useTokenTrades";
 import { useNow } from "@/lib/useNow";
 import { LivePnlCard, usePnl, type PnlState } from "./LivePnl";
 import { BondingCurveCard, MarketHero } from "./MarketStats";
@@ -40,7 +41,6 @@ export function TokenView({
   renderedAt: number;
 }) {
   const live = useMarket((s) => s.tokens[initial.id]);
-  const liveTrades = useMarket((s) => s.trades);
   const { me } = useSession();
   const [interval, setInterval] = useState<ChartInterval>(5);
   const token = live ?? initial;
@@ -58,17 +58,14 @@ export function TokenView({
     };
   }, [initial.id]);
 
+  const session = useTokenTrades(initial.id, me?.user.username, renderedAt);
   const trades = useMemo(() => {
-    const fresh = liveTrades.filter((t) => t.tokenId === initial.id);
-    const seen = new Set(fresh.map((t) => t.id));
-    return [...fresh, ...initialTrades.filter((t) => !seen.has(t.id))].slice(0, 50);
-  }, [liveTrades, initialTrades, initial.id]);
+    const seen = new Set(session.trades.map((t) => t.id));
+    return [...session.trades, ...initialTrades.filter((t) => !seen.has(t.id))].slice(0, 50);
+  }, [session.trades, initialTrades]);
 
   // Trades since the page rendered count toward both (a page isn't open for 24 hours).
-  const sinceRender = liveTrades
-    .filter((t) => t.tokenId === initial.id && t.at > renderedAt)
-    .reduce((sum, t) => sum + t.solAmount, 0);
-  const volume = { total: initialVolume.total + sinceRender, day: initialVolume.day + sinceRender };
+  const volume = { total: initialVolume.total + session.volume, day: initialVolume.day + session.volume };
   const holders = useHolders(initial.id);
 
   const position = me?.positions.find((p) => p.tokenId === initial.id);
@@ -76,7 +73,7 @@ export function TokenView({
   const openTrade = useQuickTrade((s) => s.open);
   const canBuy = Boolean(live) && live!.endedAt === null && !gone;
   const canSell = Boolean(live) && live!.endedAt === null && Boolean(position);
-  const pnl = usePnl(initial.id, live, token.price, position, me?.user.username, initialFlows, renderedAt);
+  const pnl = usePnl(live, token.price, position, initialFlows, session.mine);
   const showPnl = Boolean(position) || pnl.invested > 0;
 
   return (
