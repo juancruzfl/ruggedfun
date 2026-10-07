@@ -1,0 +1,24 @@
+{
+  "name": "@ruggedfun/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "e2e:trading": "tsx scripts/e2e-trading.ts",
+    "watch:trades": "tsx scripts/watch-trades.ts"
+  },
+  "dependencies": {
+    "@ruggedfun/db": "*",
+    "@ruggedfun/shared": "*",
+    "@ruggedfun/sim": "*",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}

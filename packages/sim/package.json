@@ -1,0 +1,14 @@
+{
+  "name": "@ruggedfun/sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "report": "tsx scripts/report.ts"
+  }
+}

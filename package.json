@@ -1,0 +1,31 @@
+{
+  "name": "ruggedfun",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:up": "docker compose up -d postgres",
+    "db:generate": "npm run db:generate -w @ruggedfun/db",
+    "db:migrate": "npm run db:migrate -w @ruggedfun/db",
+    "dev:engine": "npm run dev -w @ruggedfun/engine",
+    "smoke": "npm run smoke -w @ruggedfun/engine",
+    "sim:report": "npm run report -w @ruggedfun/sim",
+    "dev:web": "npm run dev -w @ruggedfun/web",
+    "e2e:trading": "npm run e2e:trading -w @ruggedfun/engine",
+    "watch:trades": "npm run watch:trades -w @ruggedfun/engine"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

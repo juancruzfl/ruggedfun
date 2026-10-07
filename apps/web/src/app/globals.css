@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* Dark-only, like the launchpads it parodies. */
+@theme {
+  --color-bg: #0b0d10;
+  --color-panel: #14171c;
+  --color-panel-2: #1b1f26;
+  --color-line: #262b33;
+  --color-text: #e8eaed;
+  --color-muted: #8b929c;
+  --color-pump: #4ade80;
+  --color-rug: #f43f5e;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --animate-marquee: marquee var(--marquee-duration, 60s) linear infinite;
+  --animate-shake: shake 0.4s ease-in-out 2;
+  --animate-flash-up: flash-up 0.8s ease-out;
+  --animate-flash-down: flash-down 0.8s ease-out;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    25% { transform: translateX(-3px) rotate(-1deg); }
+    75% { transform: translateX(3px) rotate(1deg); }
+  }
+  @keyframes flash-up {
+    from { background-color: color-mix(in srgb, var(--color-pump) 40%, transparent); }
+    to { background-color: transparent; }
+  }
+  @keyframes flash-down {
+    from { background-color: color-mix(in srgb, var(--color-rug) 40%, transparent); }
+    to { background-color: transparent; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-shake,
+  .animate-flash-up,
+  .animate-flash-down {
+    animation: none;
+  }
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
