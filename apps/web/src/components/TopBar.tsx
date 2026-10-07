@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "./Logo";
 import { TopNav } from "./MainNav";
 import { NotificationBell } from "./NotificationBell";
 import { SearchBar } from "./SearchBar";
@@ -10,7 +11,7 @@ export function TopBar() {
     <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
       <div className="flex h-14 items-center gap-3 px-4 lg:gap-6">
         <Link href="/" className="flex shrink-0 items-center gap-2 text-lg font-bold tracking-tight">
-          <span aria-hidden>💊</span>
+          <Logo className="size-6" />
           {/* The wordmark hides on tablets so the links and search fit. */}
           <span className="hidden sm:inline md:hidden lg:inline">
             rugged<span className="text-pump">fun</span>
