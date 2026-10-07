@@ -24,8 +24,10 @@ export const env = {
   databaseUrl: required("DATABASE_URL"),
   /** Shared with the web app; guards the internal trade endpoint. */
   engineSecret: required("ENGINE_SECRET"),
-  port: number("ENGINE_PORT", 3001),
-  webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
+  /** Hosts like Railway set PORT; ENGINE_PORT is for local dev. */
+  port: number("PORT", number("ENGINE_PORT", 3001)),
+  /** Sites allowed to connect, comma-separated (e.g. "https://ruggedfun.xyz,https://www.ruggedfun.xyz"). */
+  webOrigins: (process.env.WEB_ORIGIN ?? "http://localhost:3000").split(",").map((o) => o.trim()).filter(Boolean),
   launchMinSeconds: number("LAUNCH_MIN_SECONDS", 5),
   launchMaxSeconds: number("LAUNCH_MAX_SECONDS", 20),
   bootstrapTokens: number("BOOTSTRAP_TOKENS", 12),

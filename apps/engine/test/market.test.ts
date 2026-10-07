@@ -1,5 +1,5 @@
 import type { Callout, Candle, PriceTick, TokenStatusChange, TokenSummary, TradeEvent } from "@ruggedfun/shared";
-import { createRng, GRADUATION_PRICE } from "@ruggedfun/sim";
+import { createRng, GRADUATION_PRICE, spotPrice } from "@ruggedfun/sim";
 import { describe, expect, it } from "vitest";
 import { BotFlow, type BotOrder, type BotView } from "../src/bots";
 import { Market, TickerTakenError, TradeError, type MarketEvents, type MarketStore, type StoredToken } from "../src/market";
@@ -219,18 +219,22 @@ describe("Market", () => {
     expect(store.tokens.size).toBe(1);
   });
 
-  it("restores live tokens to the same price path after a restart", async () => {
+  it("restores live tokens onto their fate path after a restart", async () => {
+    type Internals = { live: Map<string, { sim: { multiple: number } }> };
     const store = new MemoryStore();
     const first = new Market(store, recorder().events);
     await first.launch(T0, { fate: "survive" });
     first.tick(T0 + 120_000);
     await first.flush();
     first.tick(T0 + 300_000);
-    const expected = first.summaries()[0]!.price;
+    // Live, the displayed price trails the path until the next trade; the path itself is deterministic.
+    const pathMultiple = [...(first as unknown as Internals).live.values()][0]!.sim.multiple;
 
     const second = new Market(store, recorder().events);
     await second.restore(T0 + 300_000);
-    expect(second.summaries()[0]!.price).toBe(expected);
+    const restored = second.summaries()[0]!;
+    // A restore replays quietly, so the displayed price lands exactly on the path.
+    expect(restored.price).toBeCloseTo(pathMultiple * spotPrice(restored.curve), 15);
   });
 
   it("backdated launches are fast-forwarded silently with full candle history", async () => {

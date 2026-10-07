@@ -8,12 +8,15 @@ import { positionValue } from "@/lib/positionValue";
 import { useSession } from "./SessionProvider";
 import { TokenAvatar } from "./TokenBits";
 
-const formatSol = (sol: number) => sol.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatSol = (sol: number) =>
+  sol.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const shortAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
 
 /** Top-bar wallet button with a dropdown panel. */
 export function WalletChip() {
-  const { me } = useSession();
+  const { me, setMe } = useSession();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -40,6 +43,20 @@ export function WalletChip() {
     return { ...p, value, pnl: p.costBasisSol > 0 ? value / p.costBasisSol - 1 : 0 };
   });
   const netWorth = me.wallet.solBalance + holdings.reduce((sum, h) => sum + h.value, 0);
+
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/me", { method: "DELETE" });
+      if (res.ok) {
+        setOpen(false);
+        setConfirmDelete(false);
+        setMe(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function copyAddress() {
     try {
@@ -108,13 +125,42 @@ export function WalletChip() {
                     </div>
                     <div className="text-right">
                       <div className="font-mono text-sm">{formatSol(h.value)} SOL</div>
-                      <div className={`font-mono text-xs ${h.pnl >= 0 ? "text-pump" : "text-rug"}`}>{formatPct(h.pnl)}</div>
+                      <div className={`font-mono text-xs ${h.pnl >= 0 ? "text-pump" : "text-rug"}`}>
+                        {formatPct(h.pnl)}
+                      </div>
                     </div>
                   </Link>
                 </li>
               ))}
             </ul>
           )}
+
+          <div className="mt-4 border-t border-line pt-3 text-xs">
+            {confirmDelete ? (
+              <div>
+                <p className="text-muted">
+                  Delete @{me.user.username}? Your balance, positions and history are removed. This can&apos;t be
+                  undone.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    disabled={deleting}
+                    onClick={deleteAccount}
+                    className="rounded-md bg-rug px-2.5 py-1 font-bold text-black disabled:opacity-50"
+                  >
+                    {deleting ? "Deleting…" : "Delete account"}
+                  </button>
+                  <button onClick={() => setConfirmDelete(false)} className="px-2.5 py-1 text-muted hover:text-text">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)} className="text-muted hover:text-rug">
+                Delete my account
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

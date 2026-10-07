@@ -1,21 +1,7 @@
 import type { TokenStatus } from "@ruggedfun/shared";
 import { formatPct, priceParts } from "@/lib/format";
 
-export function TokenAvatar({ src, alt, size, dim = false }: { src: string; alt: string; size: number; dim?: boolean }) {
-  return (
-    // Remote avatars from DiceBear; next/image would need remote config for little gain.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={alt}
-      width={size}
-      height={size}
-      loading="lazy"
-      className={`shrink-0 rounded-lg bg-panel-2 ${dim ? "opacity-50 grayscale" : ""}`}
-      style={{ width: size, height: size }}
-    />
-  );
-}
+export { TokenAvatar } from "./TokenAvatar";
 
 export function StatusBadge({ status }: { status: TokenStatus }) {
   if (status === "rugged") {
