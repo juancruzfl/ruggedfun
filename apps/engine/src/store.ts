@@ -18,6 +18,7 @@ function toStored(row: TokenRow): StoredToken {
   return {
     seed: row.seed,
     fate: row.fate,
+    creatorUserId: row.creatorUserId,
     curve: { virtualSol: row.virtualSol, virtualTokens: row.virtualTokens, tokensLeft: row.tokensLeft },
     summary: {
       id: row.id,
@@ -26,6 +27,7 @@ function toStored(row: TokenRow): StoredToken {
       imageUrl: row.imageUrl,
       description: row.description,
       creatorHandle: row.creatorHandle,
+      byPlayer: row.creatorUserId !== null,
       status: row.status,
       price: row.price,
       marketCap: row.marketCap,
@@ -44,7 +46,7 @@ export class PgStore implements MarketStore {
     private readonly sql: SqlClient,
   ) {}
 
-  async insertToken({ summary, seed, fate, curve }: StoredToken): Promise<void> {
+  async insertToken({ summary, seed, fate, curve, creatorUserId }: StoredToken): Promise<void> {
     try {
       await this.db.insert(tokens).values({
         id: summary.id,
@@ -53,6 +55,7 @@ export class PgStore implements MarketStore {
         imageUrl: summary.imageUrl,
         description: summary.description,
         creatorHandle: summary.creatorHandle,
+        creatorUserId: creatorUserId ?? null,
         seed,
         fate,
         status: summary.status,

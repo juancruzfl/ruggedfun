@@ -36,6 +36,13 @@
       "when": 1791333540429,
       "tag": "0004_leaderboard",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791348503954,
+      "tag": "0005_player_launches",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,7 @@ const kindColor: Record<Callout["kind"], string> = {
   graduated: "text-amber-300",
   whale: "text-sky-300",
   win: "text-pump",
+  launch: "text-violet-300",
 };
 
 const SECONDS_PER_ITEM = 6;

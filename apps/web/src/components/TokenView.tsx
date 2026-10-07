@@ -90,6 +90,9 @@ export function TokenView({
           </div>
           <div className="text-sm text-muted">
             ${token.ticker} · created {timeAgo(token.createdAt, now)} ago by {token.creatorHandle}
+            {token.byPlayer && (
+              <span className="ml-1.5 rounded bg-sky-400/15 px-1 text-[10px] font-bold text-sky-300">PLAYER</span>
+            )}
           </div>
           <p className="mt-1 text-sm text-muted">{token.description}</p>
         </div>
