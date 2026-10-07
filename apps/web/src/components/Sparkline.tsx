@@ -13,6 +13,7 @@ export function Sparkline({ points, className = "" }: { points: number[]; classN
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={className} aria-hidden>
+      <polygon points={`0,${H} ${coords.join(" ")} ${W},${H}`} className={up ? "fill-pump/10" : "fill-rug/10"} />
       <polyline
         points={coords.join(" ")}
         fill="none"

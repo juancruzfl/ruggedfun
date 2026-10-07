@@ -77,88 +77,107 @@ export function TokenView({
   const showPnl = Boolean(position) || pnl.invested > 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 pb-20 lg:pb-6">
-      <header className="flex flex-wrap items-center gap-4">
-        <TokenAvatar src={token.imageUrl} alt={token.name} size={64} dim={gone} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="truncate text-2xl font-bold">{token.name}</h1>
-            <StatusBadge status={token.status} />
-            {!live && (
-              <span className="rounded bg-line px-1.5 py-0.5 text-[10px] font-bold text-muted">NOT TRADING</span>
-            )}
+    // The glow sits outside the centered column so it spans the full width, like on the home page.
+    <div className="relative isolate">
+      <PageGlow gone={gone} />
+      <div className="mx-auto max-w-7xl px-4 py-6 pb-20 lg:pb-6">
+        <header className="flex flex-wrap items-center gap-4">
+          <TokenAvatar src={token.imageUrl} alt={token.name} size={64} dim={gone} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-2xl font-bold">{token.name}</h1>
+              <StatusBadge status={token.status} />
+              {!live && (
+                <span className="rounded bg-line px-1.5 py-0.5 text-[10px] font-bold text-muted">NOT TRADING</span>
+              )}
+            </div>
+            <div className="text-sm text-muted">
+              ${token.ticker} · created {timeAgo(token.createdAt, now)} ago by {token.creatorHandle}
+              {token.byPlayer && (
+                <span className="ml-1.5 rounded bg-sky-400/15 px-1 text-[10px] font-bold text-sky-300">PLAYER</span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-muted">{token.description}</p>
           </div>
-          <div className="text-sm text-muted">
-            ${token.ticker} · created {timeAgo(token.createdAt, now)} ago by {token.creatorHandle}
-            {token.byPlayer && (
-              <span className="ml-1.5 rounded bg-sky-400/15 px-1 text-[10px] font-bold text-sky-300">PLAYER</span>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-muted">{token.description}</p>
-        </div>
-      </header>
+        </header>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_340px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <MarketHero token={token} live={live} volume={volume} holders={holders?.count ?? null} />
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_340px]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <MarketHero token={token} live={live} volume={volume} holders={holders?.count ?? null} />
 
-          <section aria-label="Chart" className="flex flex-col rounded-xl border border-line bg-panel p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-muted">Market cap (USD, log)</span>
-              <div role="tablist" className="flex gap-1">
-                {INTERVALS.map((i) => (
-                  <button
-                    key={i.value}
-                    role="tab"
-                    aria-selected={interval === i.value}
-                    onClick={() => setInterval(i.value)}
-                    className={`rounded px-2 py-0.5 font-mono text-xs ${
-                      interval === i.value ? "bg-panel-2 text-text" : "text-muted hover:text-text"
-                    }`}
-                  >
-                    {i.label}
-                  </button>
-                ))}
+            <section aria-label="Chart" className="flex flex-col rounded-xl border border-line bg-panel p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs text-muted">Market cap (USD, log)</span>
+                <div role="tablist" className="flex gap-1">
+                  {INTERVALS.map((i) => (
+                    <button
+                      key={i.value}
+                      role="tab"
+                      aria-selected={interval === i.value}
+                      onClick={() => setInterval(i.value)}
+                      className={`rounded px-2 py-0.5 font-mono text-xs focus-visible:outline-2 focus-visible:outline-pump ${
+                        interval === i.value ? "bg-pump/15 font-semibold text-pump" : "text-muted hover:text-text"
+                      }`}
+                    >
+                      {i.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="min-h-[380px] flex-1">
-              <PriceChart tokenId={initial.id} interval={interval} />
-            </div>
-            {interval === 1 && <p className="mt-1 text-[11px] text-muted">1s candles are built live from now.</p>}
-          </section>
+              <div className="min-h-[380px] flex-1">
+                <PriceChart tokenId={initial.id} interval={interval} />
+              </div>
+              {interval === 1 && <p className="mt-1 text-[11px] text-muted">1s candles are built live from now.</p>}
+            </section>
+          </div>
+
+          <aside className="space-y-4">
+            <section aria-label="Trade" className="rounded-xl border border-line bg-panel p-4">
+              <TradeForm tokenId={initial.id} ticker={token.ticker} />
+            </section>
+
+            {showPnl && <LivePnlCard live={live} ticker={token.ticker} pnl={pnl} />}
+
+            <BondingCurveCard token={token} />
+          </aside>
         </div>
 
-        <aside className="space-y-4">
-          <section aria-label="Trade" className="rounded-xl border border-line bg-panel p-4">
-            <TradeForm tokenId={initial.id} ticker={token.ticker} />
-          </section>
+        <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_340px]">
+          <TokenActivity
+            holders={holders}
+            tokenId={initial.id}
+            ticker={token.ticker}
+            price={token.price}
+            trades={trades}
+            me={me?.user.username}
+            now={now}
+          />
+          <LiveChat tokenId={initial.id} ticker={token.ticker} username={me?.user.username} />
+        </div>
 
-          {showPnl && <LivePnlCard live={live} ticker={token.ticker} pnl={pnl} />}
-
-          <BondingCurveCard token={token} />
-        </aside>
-      </div>
-
-      <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_340px]">
-        <TokenActivity
-          holders={holders}
-          tokenId={initial.id}
-          ticker={token.ticker}
-          price={token.price}
-          trades={trades}
-          me={me?.user.username}
-          now={now}
+        <MobileTradeBar
+          canBuy={canBuy}
+          canSell={canSell}
+          pnl={showPnl ? pnl : null}
+          onTrade={(side) => openTrade(initial.id, side)}
         />
-        <LiveChat tokenId={initial.id} ticker={token.ticker} username={me?.user.username} />
       </div>
-
-      <MobileTradeBar
-        canBuy={canBuy}
-        canSell={canSell}
-        pnl={showPnl ? pnl : null}
-        onTrade={(side) => openTrade(initial.id, side)}
-      />
     </div>
+  );
+}
+
+/**
+ * Faint glows behind the top of the page, like the home page: green on the left and red on the right
+ * (the pill logo), or only red once the token has rugged or died.
+ */
+function PageGlow({ gone }: { gone: boolean }) {
+  const glow = (color: string, pct: number, at: string) =>
+    `radial-gradient(ellipse 55% 100% at ${at} 0%, color-mix(in oklab, var(${color}) ${pct}%, transparent), transparent 70%)`;
+  const backgroundImage = gone
+    ? glow("--color-rug", 10, "50%")
+    : [glow("--color-pump", 9, "10%"), glow("--color-rug", 7, "90%")].join(", ");
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96" style={{ backgroundImage }} />
   );
 }
 
@@ -191,14 +210,14 @@ function MobileTradeBar({
         <button
           disabled={!canBuy}
           onClick={() => onTrade("buy")}
-          className="flex-1 rounded-lg bg-pump py-2.5 font-bold text-black disabled:opacity-40"
+          className="flex-1 rounded-lg bg-pump py-2.5 font-bold text-pump-ink disabled:bg-panel-2 disabled:text-muted"
         >
           Buy
         </button>
         <button
           disabled={!canSell}
           onClick={() => onTrade("sell")}
-          className="flex-1 rounded-lg bg-rug py-2.5 font-bold text-black disabled:opacity-40"
+          className="flex-1 rounded-lg bg-rug py-2.5 font-bold text-rug-ink disabled:bg-panel-2 disabled:text-muted"
         >
           Sell
         </button>

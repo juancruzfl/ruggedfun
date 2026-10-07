@@ -130,7 +130,16 @@ export function LivePnlCard({ live, ticker, pnl }: { live: MarketToken | undefin
   const tone = total > 0 ? "text-pump" : total < 0 ? "text-rug" : "text-muted";
 
   return (
-    <section aria-labelledby="pnl-title" className="rounded-xl border border-line bg-panel p-4">
+    <section
+      aria-labelledby="pnl-title"
+      className={`rounded-xl border p-4 ${
+        total > 0
+          ? "border-pump/25 bg-linear-to-b from-pump/10 to-panel to-50%"
+          : total < 0
+            ? "border-rug/25 bg-linear-to-b from-rug/10 to-panel to-50%"
+            : "border-line bg-panel"
+      }`}
+    >
       <div className="flex items-center justify-between">
         <h2 id="pnl-title" className="font-semibold">
           Your PnL

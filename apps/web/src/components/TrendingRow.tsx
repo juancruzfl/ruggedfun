@@ -13,10 +13,20 @@ import { Change, StatusBadge, TokenAvatar } from "./TokenBits";
 const TRENDING_COUNT = 10;
 
 const TrendingCard = memo(function TrendingCard({ token, rank }: { token: MarketToken; rank: number }) {
+  // The card's top edge is washed in the color of its last 5 minutes.
+  const down = token.change5m < 0;
   return (
-    <div className="relative flex w-56 shrink-0 flex-col rounded-xl border border-line bg-panel p-3 transition hover:border-pump/40 hover:bg-panel-2">
+    <div
+      className={`relative flex w-56 shrink-0 flex-col rounded-xl border border-line bg-linear-to-b to-panel to-50% p-3 transition hover:bg-panel-2 ${
+        down ? "from-rug/10 hover:border-rug/40" : "from-pump/10 hover:border-pump/40"
+      }`}
+    >
       <Link href={`/token/${token.ticker}`} className="absolute inset-0 rounded-xl" aria-label={`${token.name} ($${token.ticker})`} />
-      <span className="pointer-events-none absolute right-3 top-2 font-mono text-xs text-muted">#{rank}</span>
+      <span
+        className={`pointer-events-none absolute right-3 top-2 font-mono text-xs ${rank <= 3 ? "font-bold text-pump" : "text-muted"}`}
+      >
+        #{rank}
+      </span>
       <div className="pointer-events-none flex items-center gap-3">
         <TokenAvatar src={token.imageUrl} alt="" size={48} />
         <div className="min-w-0">

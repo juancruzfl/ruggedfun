@@ -10,7 +10,7 @@ export function BuyButton({ tokenId, ticker, className = "" }: { tokenId: string
       type="button"
       onClick={() => open(tokenId)}
       aria-label={`Buy $${ticker}`}
-      className={`pointer-events-auto relative z-10 rounded-md bg-pump font-bold text-black transition hover:brightness-110 ${className}`}
+      className={`pointer-events-auto relative z-10 rounded-md bg-pump font-bold text-pump-ink transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pump ${className}`}
     >
       Buy
     </button>

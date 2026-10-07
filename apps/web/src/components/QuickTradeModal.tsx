@@ -34,8 +34,12 @@ export function QuickTradeModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="quick-trade-title"
-        className="w-full max-w-sm rounded-t-2xl border border-line bg-panel p-5 shadow-2xl shadow-black/60 sm:rounded-2xl"
+        className="relative w-full max-w-sm overflow-hidden rounded-t-2xl border border-line bg-panel p-5 shadow-2xl shadow-black/60 sm:rounded-2xl"
       >
+        {/* A strip along the top in the side's color: green to buy, red to sell. */}
+        {token && (
+          <div aria-hidden className={`absolute inset-x-0 top-0 h-1 ${side === "sell" ? "bg-rug" : "bg-pump"}`} />
+        )}
         {token ? (
           <>
             <div className="mb-4 flex items-center gap-3">
@@ -52,7 +56,11 @@ export function QuickTradeModal() {
                   <Change value={token.change5m} />
                 </div>
               </div>
-              <button onClick={close} aria-label="Close" className="text-xl text-muted hover:text-text">
+              <button
+                onClick={close}
+                aria-label="Close"
+                className="rounded text-xl text-muted hover:text-text focus-visible:outline-2 focus-visible:outline-pump"
+              >
                 ×
               </button>
             </div>

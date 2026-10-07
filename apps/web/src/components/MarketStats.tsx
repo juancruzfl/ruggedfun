@@ -45,9 +45,16 @@ export function MarketHero({
   const ofAth = athMcap > 0 ? Math.min(1, token.marketCap / athMcap) : 1;
   const atAth = ofAth >= 0.995;
   const c1m = change1m(live);
+  const dir = !live ? "flat" : live.change5m >= 0.0005 ? "up" : live.change5m <= -0.0005 ? "down" : "flat";
 
+  // The top of the card is washed in the color of the last 5 minutes, like the trending cards.
   return (
-    <section aria-label="Market" className="rounded-xl border border-line bg-panel">
+    <section
+      aria-label="Market"
+      className={`rounded-xl border border-line bg-panel ${
+        dir === "up" ? "bg-linear-to-b from-pump/10 to-panel to-40%" : dir === "down" ? "bg-linear-to-b from-rug/10 to-panel to-40%" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 p-4">
         <div>
           <div className="text-xs font-medium uppercase tracking-wide text-muted">Market cap</div>
@@ -62,13 +69,14 @@ export function MarketHero({
             {live && (
               <span
                 className={`rounded-md px-1.5 py-0.5 font-mono text-sm font-semibold ${
-                  live.change5m >= 0.0005
-                    ? "bg-pump/15 text-pump"
-                    : live.change5m <= -0.0005
-                      ? "bg-rug/15 text-rug"
-                      : "bg-panel-2 text-muted"
+                  { up: "bg-pump/15 text-pump", down: "bg-rug/15 text-rug", flat: "bg-panel-2 text-muted" }[dir]
                 }`}
               >
+                {dir !== "flat" && (
+                  <span aria-hidden className="mr-0.5 text-[0.75em]">
+                    {dir === "up" ? "▲" : "▼"}
+                  </span>
+                )}
                 {formatPct(live.change5m)} <span className="text-xs font-normal opacity-70">5m</span>
               </span>
             )}
@@ -165,7 +173,7 @@ export function BondingCurveCard({ token }: { token: TokenSummary }) {
       >
         <div
           className={`h-full rounded-full transition-[width] duration-700 ${
-            state?.tone ?? "bg-gradient-to-r from-pump/60 to-pump shadow-[0_0_12px] shadow-pump/40"
+            state?.tone ?? "bg-linear-to-r from-pump/60 to-pump shadow-[0_0_12px] shadow-pump/40"
           }`}
           style={{ width: `${progress * 100}%` }}
         />
