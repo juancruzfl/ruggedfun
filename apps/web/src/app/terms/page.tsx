@@ -79,6 +79,19 @@ export default function TermsPage() {
         </li>
       </ul>
 
+      <h2>5a. Launching tokens</h2>
+      <ul>
+        <li>
+          Launching costs play money and creates a simulated token. Its outcome is randomized like every other token on
+          the Site. Launching earns you nothing beyond what you make trading it, and the token is not yours in any real
+          sense.
+        </li>
+        <li>
+          Names, tickers, descriptions and images must follow the acceptable-use rules above. Don&apos;t imitate real
+          projects, brands or people. We may rename, hide or remove any token at any time, without refunds.
+        </li>
+      </ul>
+
       <h2>6. No warranties</h2>
       <p>
         The Site is provided <strong>&ldquo;as is&rdquo; and &ldquo;as available&rdquo;</strong>, without warranties of

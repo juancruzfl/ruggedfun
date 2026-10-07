@@ -54,6 +54,8 @@ export interface BotOrder {
   side: TradeSide;
   solAmount: number;
   trader: string;
+  /** The rug: the seller dumps everything down to the path, bag or not. */
+  rug?: boolean;
 }
 
 export class BotFlow {
@@ -122,6 +124,19 @@ export class BotFlow {
     const panic = token.status === "rugged" ? 0.3 : 1;
     const size = t.sizeMedianSol * Math.exp(t.sizeSigma * this.normal()) * sizeBoost * panic;
     return round(Math.min(t.maxSol, Math.max(t.minSol, size)));
+  }
+
+  /** The bot holding the most of a token, if any. */
+  biggestHolder(holdings: Map<string, number>): string | null {
+    let best: string | null = null;
+    let most = 0;
+    for (const [trader, amount] of holdings) {
+      if (amount > most) {
+        best = trader;
+        most = amount;
+      }
+    }
+    return best;
   }
 
   /** Picks one of a token's bot holders (other than `exclude`), bigger bags more likely. */

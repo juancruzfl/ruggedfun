@@ -8,13 +8,18 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 // Substring match, so keep entries specific enough not to block normal names.
 const BLOCKED = ["nigg", "fag", "retard", "rape", "nazi", "hitler", "kike", "tranny", "cunt", "jeet", "admin", "moderator", "ruggedfun"];
 
+/** Whether text contains a banned word (substring match, any case). */
+export function containsBlocked(text: string): boolean {
+  const lower = text.toLowerCase();
+  return BLOCKED.some((word) => lower.includes(word));
+}
+
 /** Returns an error message, or null if the username is acceptable. Uniqueness is checked by the server. */
 export function validateUsername(username: string): string | null {
   if (username.length < USERNAME_MIN) return `At least ${USERNAME_MIN} characters`;
   if (username.length > USERNAME_MAX) return `At most ${USERNAME_MAX} characters`;
   if (!USERNAME_PATTERN.test(username)) return "Letters, numbers and _ only";
-  const lower = username.toLowerCase();
-  if (BLOCKED.some((word) => lower.includes(word))) return "Pick a different name";
+  if (containsBlocked(username)) return "Pick a different name";
   return null;
 }
 

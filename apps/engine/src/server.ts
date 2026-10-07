@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { ClientToServerEvents, ServerToClientEvents } from "@ruggedfun/shared";
 import { Server } from "socket.io";
 import { TradeError, type Market, type MarketEvents } from "./market";
-import { parseTradeRequest, type Trading } from "./trading";
+import { parseLaunchRequest, parseTradeRequest, type Trading } from "./trading";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const roomFor = (tokenId: string) => `token:${tokenId}`;
@@ -49,7 +49,12 @@ export function createRealtimeServer(webOrigins: string[], engineSecret: string)
       sendJson(res, 200, { ok: true, liveTokens: market?.size ?? 0 });
       return;
     }
-    if (req.method === "POST" && req.url === "/internal/trade") {
+    const internal: Record<string, (body: unknown) => Promise<unknown>> = {
+      "/internal/trade": (body) => trading!.execute(parseTradeRequest(body)),
+      "/internal/launch": (body) => trading!.launch(parseLaunchRequest(body)),
+    };
+    const handler = req.method === "POST" ? internal[req.url ?? ""] : undefined;
+    if (handler) {
       if (!secretMatches(req.headers["x-engine-secret"] as string | undefined, engineSecret)) {
         sendJson(res, 401, { error: "Unauthorized" });
         return;
@@ -59,13 +64,13 @@ export function createRealtimeServer(webOrigins: string[], engineSecret: string)
         return;
       }
       try {
-        sendJson(res, 200, await trading.execute(parseTradeRequest(await readJson(req))));
+        sendJson(res, 200, await handler(await readJson(req)));
       } catch (err) {
         if (err instanceof TradeError) {
           sendJson(res, err.status, { error: err.message });
         } else {
-          console.error("trade failed", err);
-          sendJson(res, 500, { error: "Trade failed" });
+          console.error(`${req.url} failed`, err);
+          sendJson(res, 500, { error: "Something went wrong" });
         }
       }
       return;

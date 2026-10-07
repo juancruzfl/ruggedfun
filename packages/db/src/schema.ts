@@ -49,6 +49,8 @@ export const tokens = pgTable(
     imageUrl: text("image_url").notNull(),
     description: text("description").notNull(),
     creatorHandle: text("creator_handle").notNull(),
+    /** Set when a player launched the token (null for the market's own launches). */
+    creatorUserId: uuid("creator_user_id").references(() => users.id, { onDelete: "set null" }),
     // Server-only: never select these into anything sent to clients.
     seed: text("seed").notNull(),
     fate: fateEnum("fate").notNull(),
@@ -68,6 +70,7 @@ export const tokens = pgTable(
     index("tokens_status_created_idx").on(t.status, t.createdAt.desc()),
     index("tokens_market_cap_idx").on(t.marketCap.desc()),
     index("tokens_ended_idx").on(t.endedAt),
+    index("tokens_creator_user_idx").on(t.creatorUserId, t.createdAt.desc()),
     // Trigram indexes for ILIKE '%q%' search (needs the pg_trgm extension, migration 0002).
     index("tokens_ticker_trgm_idx").using("gin", t.ticker.op("gin_trgm_ops")),
     index("tokens_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),

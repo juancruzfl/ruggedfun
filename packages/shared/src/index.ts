@@ -11,6 +11,8 @@ export interface TokenSummary {
   imageUrl: string;
   description: string;
   creatorHandle: string;
+  /** Launched by a player (creatorHandle is their username) rather than by the market. */
+  byPlayer: boolean;
   status: TokenStatus;
   /** SOL per token. */
   price: number;
@@ -73,7 +75,7 @@ export interface TokenStatusChange {
   endedAt: number | null;
 }
 
-export type CalloutKind = "pump" | "rug" | "graduated" | "whale" | "win";
+export type CalloutKind = "pump" | "rug" | "graduated" | "whale" | "win" | "launch";
 
 /** Item for the hot-callouts ticker. */
 export interface Callout {
@@ -114,3 +116,4 @@ export * from "./account";
 export * from "./market";
 export * from "./trading";
 export * from "./alerts";
+export * from "./launch";

@@ -346,9 +346,17 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 
 ---
 
-## 9. Token Launcher (not in v1)
-- Nav item links to `/launch`, which shows a "Coming soon" page explaining what's planned
-- Future: user picks name/ticker/image and pays fake SOL; the token gets a fate rolled exactly like system tokens
+## 9. Token Launcher (`/launch`)
+- A player picks a **name** (2–24), **ticker** (2–10, unique, real-coin tickers reserved), optional
+  **description** (≤140) and an **image** from a DiceBear avatar picker (6 styles, 🎲 for new options; no uploads,
+  so nothing to moderate or store). Rules are shared by the form and the engine (`validateLaunch`); the banned-word
+  filter applies to all text. The server builds the image URL from a known style + seed.
+- **Costs 0.5 SOL** (`LAUNCH_COST_SOL`), plus an optional **dev buy** up to 5 SOL that runs as a normal player trade
+  at the launch price. Limit: **3 launches per player per hour**. A launch that fails after charging is refunded.
+- The token gets a **fate rolled like any other**, hidden from the creator. It's announced in the hot ticker
+  ("🆕 name launched $TICKER") and shows a PLAYER badge. The creator's own trades on it carry the DEV badge.
+- On a player's token, **the rug is done by the biggest bot holder**, never in the player's name.
+- **No creator rewards** (nothing to farm). `tokens.creator_user_id` records who launched it.
 
 ---
 

@@ -1,15 +1,22 @@
 import { positions, tokens, trades, users, wallets, type Db } from "@ruggedfun/db";
 import {
+  avatarUrl,
   DEFAULT_SLIPPAGE_BPS,
+  LAUNCH_COST_SOL,
+  LAUNCHES_PER_HOUR,
   MAX_SLIPPAGE_BPS,
   MIN_BUY_SOL,
+  normalizeTicker,
+  validateLaunch,
+  type LaunchRequest,
+  type LaunchResult,
   type PositionSummary,
   type TradeEvent,
   type TradeRequest,
   type TradeResult,
 } from "@ruggedfun/shared";
-import { and, eq, sql } from "drizzle-orm";
-import { TradeError, type Market } from "./market";
+import { and, count, eq, gt, sql } from "drizzle-orm";
+import { TickerTakenError, TradeError, type Market } from "./market";
 
 /** Positions smaller than this many tokens are closed. */
 const DUST_TOKENS = 1e-6;
@@ -18,6 +25,27 @@ const EPSILON = 1e-9;
 
 export interface UserTradeRequest extends TradeRequest {
   userId: string;
+}
+
+export interface UserLaunchRequest extends LaunchRequest {
+  userId: string;
+}
+
+/** Rejects malformed launches; the field rules are shared with the launch form. */
+export function parseLaunchRequest(body: unknown): UserLaunchRequest {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b.userId !== "string" || !UUID.test(b.userId)) throw new TradeError("Invalid user");
+  const req = {
+    name: typeof b.name === "string" ? b.name.trim() : "",
+    ticker: typeof b.ticker === "string" ? normalizeTicker(b.ticker) : "",
+    description: typeof b.description === "string" ? b.description.trim() : "",
+    avatarStyle: b.avatarStyle as LaunchRequest["avatarStyle"],
+    avatarSeed: typeof b.avatarSeed === "string" ? b.avatarSeed : "",
+    devBuySol: typeof b.devBuySol === "number" ? b.devBuySol : 0,
+  };
+  const errors = Object.values(validateLaunch(req));
+  if (errors.length > 0) throw new TradeError(errors[0]!);
+  return { ...req, userId: b.userId };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,9 +88,97 @@ export class Trading {
   ) {}
 
   execute(request: UserTradeRequest): Promise<TradeResult> {
-    const run = this.queue.then(() => this.run(request));
+    return this.enqueue(() => this.run(request));
+  }
+
+  /** Launches go through the same queue as trades, so a dev buy can't interleave with other fills. */
+  launch(request: UserLaunchRequest): Promise<LaunchResult> {
+    return this.enqueue(() => this.runLaunch(request));
+  }
+
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(task);
     this.queue = run.catch(() => {});
     return run;
+  }
+
+  /**
+   * Charges the launch cost, creates the token (fate rolled like any other, hidden from the
+   * creator), then runs the optional dev buy as a normal player trade. If the ticker turns out to
+   * be taken, the cost is refunded.
+   */
+  private async runLaunch(req: UserLaunchRequest): Promise<LaunchResult> {
+    const [taken] = await this.db.select({ id: tokens.id }).from(tokens).where(eq(tokens.ticker, req.ticker)).limit(1);
+    if (taken) throw new TradeError(`$${req.ticker} is already taken`, 409);
+
+    const username = await this.db.transaction(async (tx) => {
+      const [account] = await tx
+        .select({ solBalance: wallets.solBalance, username: users.username })
+        .from(wallets)
+        .innerJoin(users, eq(users.id, wallets.userId))
+        .where(eq(wallets.userId, req.userId))
+        .for("update", { of: wallets });
+      if (!account) throw new TradeError("No wallet for this user", 404);
+
+      const [recent] = await tx
+        .select({ n: count() })
+        .from(tokens)
+        .where(and(eq(tokens.creatorUserId, req.userId), gt(tokens.createdAt, new Date(Date.now() - 3600_000))));
+      if ((recent?.n ?? 0) >= LAUNCHES_PER_HOUR) {
+        throw new TradeError(`You can launch ${LAUNCHES_PER_HOUR} tokens an hour. Try again later.`, 429);
+      }
+      if (account.solBalance + EPSILON < LAUNCH_COST_SOL + req.devBuySol) {
+        throw new TradeError(`Not enough SOL: launching costs ${LAUNCH_COST_SOL} SOL plus your dev buy`, 409);
+      }
+      await tx
+        .update(wallets)
+        .set({ solBalance: account.solBalance - LAUNCH_COST_SOL })
+        .where(eq(wallets.userId, req.userId));
+      return account.username;
+    });
+
+    let token;
+    try {
+      token = await this.market.launch(Date.now(), {
+        player: {
+          userId: req.userId,
+          username,
+          name: req.name,
+          ticker: req.ticker,
+          description: req.description,
+          imageUrl: avatarUrl(req.avatarStyle, req.avatarSeed),
+        },
+      });
+    } catch (err) {
+      await this.db
+        .update(wallets)
+        .set({ solBalance: sql`${wallets.solBalance} + ${LAUNCH_COST_SOL}` })
+        .where(eq(wallets.userId, req.userId));
+      if (err instanceof TickerTakenError) throw new TradeError(`$${req.ticker} is already taken`, 409);
+      throw err;
+    }
+
+    if (req.devBuySol > 0) {
+      const { quote } = this.market.quote(token.id, "buy", req.devBuySol);
+      const bought = await this.run({
+        userId: req.userId,
+        tokenId: token.id,
+        side: "buy",
+        amount: req.devBuySol,
+        expectedPrice: quote.avgPrice,
+      });
+      return {
+        token: this.market.summaries().find((t) => t.id === token.id) ?? token,
+        solBalance: bought.solBalance,
+        position: bought.position,
+      };
+    }
+
+    const [wallet] = await this.db
+      .select({ solBalance: wallets.solBalance })
+      .from(wallets)
+      .where(eq(wallets.userId, req.userId));
+    return { token, solBalance: wallet?.solBalance ?? 0, position: null };
   }
 
   private async run(req: UserTradeRequest): Promise<TradeResult> {
@@ -173,7 +289,8 @@ export class Trading {
         price: quote.avgPrice,
         trader: account.username,
         isBot: false,
-        isDev: false,
+        // A player trading the token they launched is its dev.
+        isDev: summary.byPlayer && account.username === summary.creatorHandle,
         realizedPnlSol,
         at,
         priceAfter: quote.priceAfter,

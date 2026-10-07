@@ -13,6 +13,7 @@ const summaryColumns = {
   imageUrl: tokens.imageUrl,
   description: tokens.description,
   creatorHandle: tokens.creatorHandle,
+  byPlayer: sql<boolean>`${tokens.creatorUserId} is not null`,
   status: tokens.status,
   price: tokens.price,
   marketCap: tokens.marketCap,

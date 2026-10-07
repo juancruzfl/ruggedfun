@@ -48,6 +48,8 @@ export interface MarketEvents {
 /** Server-side token state. `seed` and `fate` must never be sent to clients. */
 export interface StoredToken {
   summary: TokenSummary;
+  /** The player who launched it, if any. */
+  creatorUserId?: string | null;
   seed: string;
   fate: Fate;
   curve: CurveState;
@@ -201,19 +203,48 @@ export class Market {
     }
   }
 
-  async launch(now: number, options: { fate?: Fate; backdateMs?: number } = {}): Promise<MarketToken> {
+  /**
+   * Launches a token. Market launches get generated names (retrying ticker collisions) and a bot
+   * dev buy; a player launch uses the player's name, ticker and image and throws TickerTakenError
+   * if the ticker is taken. Either way the fate is rolled the same way, hidden from everyone.
+   */
+  async launch(
+    now: number,
+    options: {
+      fate?: Fate;
+      backdateMs?: number;
+      player?: {
+        userId: string;
+        username: string;
+        name: string;
+        ticker: string;
+        description: string;
+        imageUrl: string;
+      };
+    } = {},
+  ): Promise<MarketToken> {
     const seed = randomSeed();
     const sim = new TokenSim(seed, { fate: options.fate });
     const metaRng = createRng(`${seed}:meta`);
     const createdAt = now - (options.backdateMs ?? 0);
     const curve = initialCurve();
 
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const meta = generateTokenMeta(metaRng, attempt);
+    const player = options.player;
+    for (let attempt = 0; attempt < (player ? 1 : 5); attempt++) {
+      const meta = player
+        ? {
+            name: player.name,
+            ticker: player.ticker,
+            description: player.description,
+            imageUrl: player.imageUrl,
+            creatorHandle: player.username,
+          }
+        : generateTokenMeta(metaRng, attempt);
       const price = sim.multiple * spotPrice(curve);
       const summary: TokenSummary = {
         id: crypto.randomUUID(),
         ...meta,
+        byPlayer: Boolean(player),
         status: "live",
         price,
         marketCap: marketCapSol(price),
@@ -223,19 +254,24 @@ export class Market {
         graduatedAt: null,
         endedAt: null,
       };
+      const creatorUserId = player?.userId ?? null;
       try {
-        await this.store.insertToken({ summary, seed, fate: sim.fate, curve });
+        await this.store.insertToken({ summary, seed, fate: sim.fate, curve, creatorUserId });
       } catch (err) {
-        if (err instanceof TickerTakenError) continue;
+        if (err instanceof TickerTakenError && !player) continue;
         throw err;
       }
 
-      const token = this.track({ summary, seed, fate: sim.fate, curve }, sim);
+      const token = this.track({ summary, seed, fate: sim.fate, curve, creatorUserId }, sim);
       if (options.backdateMs) {
         this.advance(token, now, { quiet: true });
       } else {
-        token.devBought = false;
+        // Market launches get a bot dev buy; a player makes their own (or doesn't).
+        token.devBought = Boolean(player);
         this.events.launched(toMarketToken(token));
+        if (player) {
+          this.callout(token, "launch", `🆕 ${player.username} launched $${summary.ticker}`, createdAt, false);
+        }
       }
       return toMarketToken(token);
     }
@@ -421,7 +457,7 @@ export class Market {
     let trader = order.trader;
 
     // The creator can always rug their own token, bag or not (backdated tokens never got a launch buy).
-    const isRug = order.trader === summary.creatorHandle && summary.status === "rugged" && moves && side === "sell";
+    const isRug = order.rug === true && summary.status === "rugged" && moves && side === "sell";
     if (side === "sell") {
       // Creators hold until they rug: their only sell is the rug itself.
       const seller = isRug ? order.trader : this.bots.pickHolder(botHoldings, summary.creatorHandle);
@@ -564,7 +600,8 @@ export class Market {
     let reached = -1;
     while (token.nextPumpCallout !== -1 && multiple >= PUMP_CALLOUT_MULTIPLES[token.nextPumpCallout]!) {
       reached = PUMP_CALLOUT_MULTIPLES[token.nextPumpCallout]!;
-      token.nextPumpCallout = token.nextPumpCallout + 1 < PUMP_CALLOUT_MULTIPLES.length ? token.nextPumpCallout + 1 : -1;
+      token.nextPumpCallout =
+        token.nextPumpCallout + 1 < PUMP_CALLOUT_MULTIPLES.length ? token.nextPumpCallout + 1 : -1;
     }
     if (reached !== -1) this.callout(token, "pump", `🚀 $${summary.ticker} just hit ${reached}x`, at, quiet);
   }
@@ -576,7 +613,12 @@ export class Market {
       summary.status = "rugged";
       // The rug is the creator dumping at the top: a sell sized to take the price down to the path.
       // (Replaying quietly, the price already followed the path.)
-      if (!quiet) this.fillBotOrder(token, { tokenId: summary.id, side: "sell", solAmount: 0, trader: summary.creatorHandle });
+      // On a player's token the player isn't the rugger: the biggest bot holder dumps instead.
+      const rugger = summary.byPlayer
+        ? (this.bots.biggestHolder(token.botHoldings) ?? this.bots.randomTrader())
+        : summary.creatorHandle;
+      if (!quiet)
+        this.fillBotOrder(token, { tokenId: summary.id, side: "sell", solAmount: 0, trader: rugger, rug: true });
       const drop = Math.min(99, Math.floor((1 - summary.price / summary.athPrice) * 100));
       this.callout(token, "rug", `💀 $${summary.ticker} RUGGED -${drop}%`, at, quiet);
       this.statusChanged(token, quiet);
