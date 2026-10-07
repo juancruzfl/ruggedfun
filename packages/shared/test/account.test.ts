@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateUsername } from "../src";
+import { randomUsername, validateUsername } from "../src";
 
 describe("validateUsername", () => {
   it("accepts normal names", () => {
@@ -18,5 +18,18 @@ describe("validateUsername", () => {
     expect(validateUsername("RuggedFun_Admin")).not.toBeNull();
     expect(validateUsername("xxHITLERxx")).not.toBeNull();
     expect(validateUsername("big_Jeet9")).not.toBeNull();
+  });
+});
+
+describe("randomUsername", () => {
+  it("always produces a valid username", () => {
+    for (let i = 0; i < 10_000; i++) {
+      const name = randomUsername();
+      expect(validateUsername(name), name).toBeNull();
+    }
+  });
+
+  it("varies", () => {
+    expect(new Set(Array.from({ length: 50 }, () => randomUsername())).size).toBeGreaterThan(40);
   });
 });

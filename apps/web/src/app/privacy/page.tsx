@@ -64,18 +64,21 @@ export default function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        Account and game data is kept until you delete your account or we reset the game. Net-worth snapshots are kept
+        Account and game data is kept until you ask us to remove it or we reset the game. Net-worth snapshots are kept
         for 48 hours. Bot activity is pruned about a day after a token stops trading.
       </p>
 
       <h2>Your choices</h2>
       <ul>
         <li>
-          <strong>Delete your account</strong> from the wallet menu at any time. That removes your username, balance,
-          positions and history. Past trades stay in the market history without your name attached.
+          <strong>Start a new account</strong> from the wallet menu at any time. Your previous account stays in the game
+          (its trades and leaderboard entries remain) but can no longer be accessed.
         </li>
         <li>Clearing your cookies signs you out permanently (accounts can&apos;t be recovered).</li>
-        <li>For any other request, contact us below.</li>
+        <li>
+          <strong>Removal requests</strong>: to have an account and its data removed, contact us below with the username
+          and we&apos;ll delete it. Past trades stay in the market history without a name attached.
+        </li>
       </ul>
 
       <h2>Children</h2>

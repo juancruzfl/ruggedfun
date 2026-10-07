@@ -60,7 +60,8 @@ export default function TermsPage() {
         </li>
         <li>You&apos;re responsible for what happens under your account.</li>
         <li>
-          You can delete your account at any time from the wallet menu. We may suspend, reset or delete accounts,
+          You can start a new account at any time from the wallet menu. Your previous account and its history stay in
+          the game (including on leaderboards) but can no longer be accessed. We may suspend, reset or delete accounts,
           balances, positions, leaderboards or game data at any time, for any reason, including to fix bugs or abuse.
         </li>
       </ul>
