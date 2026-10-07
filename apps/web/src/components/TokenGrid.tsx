@@ -67,8 +67,12 @@ export function TokenGrid() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-              tab === t.id ? "bg-pump text-black" : "bg-panel text-muted hover:text-text"
+            className={`shrink-0 rounded-lg border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 ${
+              tab !== t.id
+                ? "border-line bg-panel text-muted hover:border-muted/40 hover:text-text focus-visible:outline-pump"
+                : t.id === "rugged"
+                  ? "border-rug bg-rug font-semibold text-rug-ink focus-visible:outline-rug"
+                  : "border-pump bg-pump font-semibold text-pump-ink focus-visible:outline-pump"
             }`}
           >
             {t.label}

@@ -1,5 +1,6 @@
 import { containsBlocked } from "./account";
 import type { MarketToken } from "./index";
+import { HOUSE_TOKEN } from "./market";
 import type { PositionSummary } from "./trading";
 
 /** Fake SOL a player pays to launch a token. */
@@ -67,6 +68,7 @@ export function validateLaunch(req: Partial<LaunchRequest>): Partial<Record<keyo
   else if (ticker.length > TICKER_MAX) errors.ticker = `At most ${TICKER_MAX} characters`;
   else if (!/^[A-Z0-9]+$/.test(ticker)) errors.ticker = "Letters and numbers only";
   else if (RESERVED_TICKERS.has(ticker)) errors.ticker = "That's a real coin's ticker";
+  else if (ticker === HOUSE_TOKEN.ticker) errors.ticker = "That's ruggedfun's own token";
   else if (containsBlocked(ticker)) errors.ticker = "Pick a different ticker";
 
   if (description.length > DESCRIPTION_MAX) errors.description = `At most ${DESCRIPTION_MAX} characters`;

@@ -22,6 +22,10 @@ type RawCandle = Pick<Candle, "time" | "open" | "high" | "low" | "close" | "volu
 
 const UP = "#4ade80";
 const DOWN = "#f43f5e";
+// globals.css tokens in hex (the chart draws on a canvas and can't read CSS variables). Keep in sync.
+const MUTED = "#95a29c";
+const PANEL_2 = "#19201d";
+const LINE = "#252e2a";
 
 /** Price per token (SOL) → market cap in USD, which is what launchpad charts show. */
 const toMcapUsd = (price: number) => price * CURVE.totalSupply * SOL_USD;
@@ -61,11 +65,11 @@ export function PriceChart({ tokenId, interval }: { tokenId: string; interval: C
   useEffect(() => {
     const chart = createChart(containerRef.current!, {
       autoSize: true,
-      layout: { background: { color: "transparent" }, textColor: "#8b929c", attributionLogo: false },
-      grid: { vertLines: { color: "#1b1f26" }, horzLines: { color: "#1b1f26" } },
-      rightPriceScale: { borderColor: "#262b33", mode: PriceScaleMode.Logarithmic },
+      layout: { background: { color: "transparent" }, textColor: MUTED, attributionLogo: false },
+      grid: { vertLines: { color: PANEL_2 }, horzLines: { color: PANEL_2 } },
+      rightPriceScale: { borderColor: LINE, mode: PriceScaleMode.Logarithmic },
       timeScale: {
-        borderColor: "#262b33",
+        borderColor: LINE,
         timeVisible: true,
         secondsVisible: true,
         tickMarkFormatter: (t: number) => localTime(t, false),

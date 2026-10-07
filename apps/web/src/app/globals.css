@@ -1,15 +1,22 @@
 @import "tailwindcss";
 
-/* Dark-only, like the launchpads it parodies. */
+/*
+ * Dark-only, like the launchpads it parodies.
+ * The palette comes from the pill logo: green (pump) is the brand and the "go" color, red (rug) means
+ * loss or danger. The neutrals carry a faint green tint so the surfaces sit in the same family.
+ */
 @theme {
-  --color-bg: #0b0d10;
-  --color-panel: #14171c;
-  --color-panel-2: #1b1f26;
-  --color-line: #262b33;
-  --color-text: #e8eaed;
-  --color-muted: #8b929c;
+  --color-bg: oklch(0.155 0.008 165);
+  --color-panel: oklch(0.195 0.011 165);
+  --color-panel-2: oklch(0.235 0.013 165);
+  --color-line: oklch(0.29 0.014 165);
+  --color-text: oklch(0.95 0.006 165);
+  --color-muted: oklch(0.7 0.018 165);
   --color-pump: #4ade80;
   --color-rug: #f43f5e;
+  /* Text on a solid pump or rug fill: deep shades of each hue instead of flat black. */
+  --color-pump-ink: #052e16;
+  --color-rug-ink: #2d030d;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 

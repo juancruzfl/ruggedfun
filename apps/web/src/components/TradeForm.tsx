@@ -70,7 +70,7 @@ export function TradeForm({
                 clearError();
               }}
               className={`rounded-md py-1.5 text-sm font-bold capitalize transition ${
-                side === s ? (s === "buy" ? "bg-pump text-black" : "bg-rug text-black") : "text-muted hover:text-text"
+                side === s ? (s === "buy" ? "bg-pump text-pump-ink" : "bg-rug text-rug-ink") : "text-muted hover:text-text"
               }`}
             >
               {s}
@@ -86,7 +86,11 @@ export function TradeForm({
             {side === "buy" ? `Balance ${formatSol(balance)} SOL` : `Holding ${formatTokens(held)}`}
           </span>
         </div>
-        <div className="flex items-center rounded-lg border border-line bg-bg px-3 focus-within:border-pump/50">
+        <div
+          className={`flex items-center rounded-lg border border-line bg-bg px-3 ${
+            side === "buy" ? "focus-within:border-pump/60" : "focus-within:border-rug/60"
+          }`}
+        >
           <input
             id={`amount-${tokenId}`}
             inputMode="decimal"
@@ -162,8 +166,8 @@ export function TradeForm({
       <button
         type="submit"
         disabled={!quote || Boolean(problem) || pending}
-        className={`w-full rounded-lg py-2.5 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${
-          side === "buy" ? "bg-pump" : "bg-rug"
+        className={`w-full rounded-lg py-2.5 font-bold transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-panel-2 disabled:text-muted disabled:hover:brightness-100 ${
+          side === "buy" ? "bg-pump text-pump-ink focus-visible:outline-pump" : "bg-rug text-rug-ink focus-visible:outline-rug"
         }`}
       >
         {pending ? "Sending…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}

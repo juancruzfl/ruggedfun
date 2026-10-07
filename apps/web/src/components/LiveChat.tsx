@@ -231,7 +231,7 @@ export function LiveChat({ tokenId, ticker, username }: { tokenId: string; ticke
         <button
           type="submit"
           disabled={!draft.trim()}
-          className="rounded-lg bg-pump px-3 text-sm font-bold text-black disabled:opacity-40"
+          className="rounded-lg bg-pump px-3 text-sm font-bold text-pump-ink disabled:opacity-40"
         >
           Send
         </button>

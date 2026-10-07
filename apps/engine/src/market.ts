@@ -1,5 +1,6 @@
 import {
   CANDLE_INTERVALS,
+  HOUSE_TOKEN,
   SPARKLINE_POINTS,
   SPARKLINE_SAMPLE_SECONDS,
   type Callout,
@@ -27,6 +28,7 @@ import {
   tokensSold,
   type CurveState,
   type Fate,
+  type SimFate,
   type TradeQuote,
   type TradeSide,
 } from "@ruggedfun/sim";
@@ -51,7 +53,7 @@ export interface StoredToken {
   /** The player who launched it, if any. */
   creatorUserId?: string | null;
   seed: string;
-  fate: Fate;
+  fate: SimFate;
   curve: CurveState;
 }
 
@@ -197,7 +199,19 @@ export class Market {
     const stored = await this.store.loadLive();
     const holdings = await this.store.loadBotHoldings(stored.map((s) => s.summary.id));
     for (const s of stored) {
-      const token = this.track(s, new TokenSim(s.seed, { fate: s.fate }));
+      // The house token never ends, so replaying it from launch would take longer every restart.
+      // It picks up from its saved price instead; everything else replays its fate path.
+      const sim =
+        s.fate === "house"
+          ? new TokenSim(s.seed, {
+              fate: "house",
+              resume: {
+                tick: Math.floor((now - s.summary.createdAt) / TICK_MS),
+                multiple: s.summary.price / spotPrice(s.curve),
+              },
+            })
+          : new TokenSim(s.seed, { fate: s.fate });
+      const token = this.track(s, sim);
       token.botHoldings = holdings.get(s.summary.id) ?? new Map();
       this.advance(token, now, { quiet: true, candlesSince: now - RESTORE_CANDLE_WINDOW_MS });
     }
@@ -207,12 +221,14 @@ export class Market {
    * Launches a token. Market launches get generated names (retrying ticker collisions) and a bot
    * dev buy; a player launch uses the player's name, ticker and image and throws TickerTakenError
    * if the ticker is taken. Either way the fate is rolled the same way, hidden from everyone.
+   * `house` launches $RUGGEDFUN instead (see ensureHouseToken).
    */
   async launch(
     now: number,
     options: {
       fate?: Fate;
       backdateMs?: number;
+      house?: boolean;
       player?: {
         userId: string;
         username: string;
@@ -224,22 +240,25 @@ export class Market {
     } = {},
   ): Promise<MarketToken> {
     const seed = randomSeed();
-    const sim = new TokenSim(seed, { fate: options.fate });
+    const house = options.house === true;
+    const sim = new TokenSim(seed, { fate: house ? "house" : options.fate });
     const metaRng = createRng(`${seed}:meta`);
     const createdAt = now - (options.backdateMs ?? 0);
     const curve = initialCurve();
 
     const player = options.player;
-    for (let attempt = 0; attempt < (player ? 1 : 5); attempt++) {
-      const meta = player
-        ? {
-            name: player.name,
-            ticker: player.ticker,
-            description: player.description,
-            imageUrl: player.imageUrl,
-            creatorHandle: player.username,
-          }
-        : generateTokenMeta(metaRng, attempt);
+    for (let attempt = 0; attempt < (player || house ? 1 : 5); attempt++) {
+      const meta = house
+        ? { ...HOUSE_TOKEN }
+        : player
+          ? {
+              name: player.name,
+              ticker: player.ticker,
+              description: player.description,
+              imageUrl: player.imageUrl,
+              creatorHandle: player.username,
+            }
+          : generateTokenMeta(metaRng, attempt);
       const price = sim.multiple * spotPrice(curve);
       const summary: TokenSummary = {
         id: crypto.randomUUID(),
@@ -258,7 +277,7 @@ export class Market {
       try {
         await this.store.insertToken({ summary, seed, fate: sim.fate, curve, creatorUserId });
       } catch (err) {
-        if (err instanceof TickerTakenError && !player) continue;
+        if (err instanceof TickerTakenError && !player && !house) continue;
         throw err;
       }
 
@@ -266,8 +285,8 @@ export class Market {
       if (options.backdateMs) {
         this.advance(token, now, { quiet: true });
       } else {
-        // Market launches get a bot dev buy; a player makes their own (or doesn't).
-        token.devBought = Boolean(player);
+        // Market launches get a bot dev buy; a player makes their own (or doesn't). The house doesn't.
+        token.devBought = Boolean(player) || house;
         this.events.launched(toMarketToken(token));
         if (player) {
           this.callout(token, "launch", `🆕 ${player.username} launched $${summary.ticker}`, createdAt, false);
@@ -276,6 +295,15 @@ export class Market {
       return toMarketToken(token);
     }
     throw new Error("Could not find a free ticker after 5 attempts");
+  }
+
+  /**
+   * Launches $RUGGEDFUN if it isn't trading yet; returns it if it was launched, null if it already was.
+   * Throws TickerTakenError if another token already has its ticker.
+   */
+  async ensureHouseToken(now: number): Promise<MarketToken | null> {
+    for (const token of this.live.values()) if (token.fate === "house") return null;
+    return this.launch(now, { house: true });
   }
 
   /** Advances every token to `now`, runs a second of bot trading, and broadcasts prices that moved. */
@@ -589,7 +617,8 @@ export class Market {
 
   private checkPriceMilestones(token: LiveToken, at: number, quiet: boolean): void {
     const { summary } = token;
-    if (summary.status === "live" && summary.price >= GRADUATION_PRICE) {
+    // The house token never graduates, even if players buy it past the graduation price.
+    if (summary.status === "live" && summary.price >= GRADUATION_PRICE && token.fate !== "house") {
       summary.status = "graduated";
       summary.graduatedAt = at;
       this.callout(token, "graduated", `🎓 $${summary.ticker} graduated!`, at, quiet);

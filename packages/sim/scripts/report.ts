@@ -4,14 +4,14 @@
  *
  *   npm run report -w @ruggedfun/sim -- [count] [seedPrefix]
  */
-import { FATE_WEIGHTS, GRADUATION_MULTIPLE, simulatePath, TICK_SECONDS, type Fate } from "../src";
+import { FATE_WEIGHTS, GRADUATION_MULTIPLE, simulatePath, TICK_SECONDS, type Fate, type SimFate } from "../src";
 
 const count = Number(process.argv[2] ?? 1000);
 const prefix = process.argv[3] ?? "report";
 const fates = Object.keys(FATE_WEIGHTS) as Fate[];
 
 interface Result {
-  fate: Fate;
+  fate: SimFate;
   peak: number;
   final: number;
   seconds: number;

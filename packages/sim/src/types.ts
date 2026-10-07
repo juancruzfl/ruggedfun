@@ -1,6 +1,12 @@
 /** Hidden outcome rolled at launch. Never sent to clients. */
 export type Fate = "rug" | "slow_death" | "survive" | "moon";
 
+/** The launchpad's own token ($RUGGEDFUN): never rolled, never ends. */
+export type HouseFate = "house";
+
+/** Every kind of price path the simulator runs. */
+export type SimFate = Fate | HouseFate;
+
 /** Status a token ends in once its simulation finishes. */
 export type EndStatus = "rugged" | "dead" | "graduated";
 
@@ -16,7 +22,7 @@ export interface Keyframe {
 
 /** Everything decided about a token at launch. Derived deterministically from its seed. */
 export interface FatePlan {
-  fate: Fate;
+  fate: SimFate;
   endStatus: EndStatus;
   endTick: number;
   keyframes: Keyframe[];

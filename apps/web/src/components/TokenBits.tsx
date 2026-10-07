@@ -17,8 +17,20 @@ export function StatusBadge({ status }: { status: TokenStatus }) {
 }
 
 export function Change({ value, className = "" }: { value: number; className?: string }) {
-  const color = value >= 0.0005 ? "text-pump" : value <= -0.0005 ? "text-rug" : "text-muted";
-  return <span className={`font-mono ${color} ${className}`}>{formatPct(value)}</span>;
+  const dir = value >= 0.0005 ? "up" : value <= -0.0005 ? "down" : "flat";
+  const color = { up: "text-pump", down: "text-rug", flat: "text-muted" }[dir];
+  // The arrow repeats the direction in shape, for anyone who can't tell the red from the green.
+  const arrow = { up: "▲", down: "▼", flat: "" }[dir];
+  return (
+    <span className={`font-mono ${color} ${className}`}>
+      {arrow && (
+        <span aria-hidden className="mr-0.5 text-[0.75em]">
+          {arrow}
+        </span>
+      )}
+      {formatPct(value)}
+    </span>
+  );
 }
 
 /** Tiny SOL price with the zero run as a real subscript (fonts often lack the ₀–₉ glyphs). */

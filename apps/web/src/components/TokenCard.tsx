@@ -24,8 +24,10 @@ export const TokenCard = memo(function TokenCard({ token }: { token: CardToken }
   // The link stretches over the whole card; content ignores clicks so they reach it, except the Buy button.
   return (
     <div
-      className={`relative rounded-xl border border-line bg-panel p-3 transition hover:border-pump/40 hover:bg-panel-2 ${
-        isNew ? "animate-shake border-pump/60" : ""
+      className={`relative rounded-xl border p-3 transition hover:bg-panel-2 ${
+        gone
+          ? "border-rug/20 bg-linear-to-b from-rug/[0.07] to-panel to-60% hover:border-rug/40"
+          : `bg-panel hover:border-pump/40 ${isNew ? "animate-shake border-pump/60" : "border-line"}`
       }`}
     >
       <Link href={`/token/${token.ticker}`} className="absolute inset-0 rounded-xl" aria-label={`${token.name} ($${token.ticker})`} />
