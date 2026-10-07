@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuickBuy } from "@/lib/quickBuy";
+import { useQuickTrade } from "@/lib/quickTrade";
 
-/** Opens the quick-buy modal. Sits above a card's full-size link, so it needs its own stacking. */
+/** Opens the quick-trade modal on the buy side. Sits above a card's full-size link, so it needs its own stacking. */
 export function BuyButton({ tokenId, ticker, className = "" }: { tokenId: string; ticker: string; className?: string }) {
-  const open = useQuickBuy((s) => s.open);
+  const open = useQuickTrade((s) => s.open);
   return (
     <button
       type="button"

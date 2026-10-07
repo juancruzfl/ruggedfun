@@ -242,6 +242,16 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
   and a player can push it to "graduated". Revisit when bots trade in milestone 6.
 - **Deferred:** the holder list and holder count (more meaningful once bots trade).
 
+### 6.8 Polish implementation notes (milestone 8)
+- **Rug moment:** fires when a token you hold flips to rugged. The engine announces the rug just before that
+  second's price update, so the overlay waits for the crashed price (or 2s) to show the real loss.
+  Buttons: "Sell what's left" (opens quick sell), "Share my L" (share sheet, or copies text), "I'm fine 🙂".
+- **Moon moment:** fires on a sell at ≥ 2x (realized, average cost) or ≥ 2 SOL profit.
+- **Sounds** are synthesized with Web Audio (no files): blips on buys/sells, a sad trombone on rugs, an
+  arpeggio on moons. The 🔊 toggle is remembered per browser. Browsers stay silent until the first click.
+- Shake and emoji rain are skipped for people who prefer reduced motion.
+- The quick-buy modal became a quick-trade modal (`useQuickTrade.open(tokenId, "buy" | "sell")`).
+
 ## 7. Live Feed (`/feed`)
 - Real-time stream of every trade (users + bots), newest on top, capped at ~200 rows in the DOM
 - Row: avatar, username, BUY/SELL, SOL amount, token image + ticker, time ago, **[Buy]** button
@@ -291,7 +301,7 @@ Modeled on pump.fun / similar launchpads. Dark theme, dense, lots of motion.
 ---
 
 ## 9. Token Launcher (not in v1)
-- Nav item and `/launch` route show a "Coming soon" placeholder
+- Nav item links to `/launch`, which shows a "Coming soon" page explaining what's planned
 - Future: user picks name/ticker/image and pays fake SOL; the token gets a fate rolled exactly like system tokens
 
 ---
@@ -367,7 +377,7 @@ POST /api/faucet
 | 5 | Token page + trading | ✅ Market-cap chart (1s/5s/1m, log scale, volume), trade panel, quick-buy modal, server-side fills through the engine, positions + PnL in the wallet panel. `npm run e2e:trading` checks it |
 | 6 | Bot traders + live feed | ✅ Bot order flow (~6 trades/s, follows momentum), dev buy at launch and dev dump at the rug, whale callouts, volume-based trending, `/feed` with filters, pause-on-hover and [Buy] buttons |
 | 7 | Leaderboard | ✅ All-time PnL, 24h PnL, Biggest win, Wall of shame; top-3 podium, ranks to 100, your row pinned below that; refreshes every 30s |
-| 8 | Polish | Rug/moon moments, sounds, mobile layout, disclaimer, launcher placeholder |
+| 8 | Polish | ✅ Rug and moon moments (overlay, emoji rain, screen shake, sound, share), synthesized sounds + mute toggle, mobile Buy/Sell bar on token pages, `/launch` placeholder, per-page titles |
 | 9 | Deploy | Vercel + Railway/Fly + Supabase/Neon, domain ruggedfun.xyz |
 
 ---

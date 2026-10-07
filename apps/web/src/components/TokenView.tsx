@@ -4,6 +4,7 @@ import type { TokenSummary, TradeEvent } from "@ruggedfun/shared";
 import { useEffect, useMemo, useState } from "react";
 import { formatPct, formatSol, formatTokens, formatUsd, timeAgo } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
+import { useQuickTrade } from "@/lib/quickTrade";
 import { getSocket } from "@/lib/socket";
 import { useNow } from "@/lib/useNow";
 import { PriceChart, type ChartInterval } from "./PriceChart";
@@ -63,10 +64,13 @@ export function TokenView({
 
   const position = me?.positions.find((p) => p.tokenId === initial.id);
   const gone = token.status === "rugged" || token.status === "dead";
+  const openTrade = useQuickTrade((s) => s.open);
+  const canBuy = Boolean(live) && live!.endedAt === null && !gone;
+  const canSell = Boolean(live) && live!.endedAt === null && Boolean(position);
   const change5m = live?.change5m;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 pb-20 lg:pb-6">
       <header className="flex flex-wrap items-center gap-4">
         <TokenAvatar src={token.imageUrl} alt={token.name} size={64} dim={gone} />
         <div className="min-w-0 flex-1">
@@ -177,6 +181,30 @@ export function TokenView({
           </div>
         )}
       </section>
+
+      <MobileTradeBar canBuy={canBuy} canSell={canSell} onTrade={(side) => openTrade(initial.id, side)} />
+    </div>
+  );
+}
+
+/** Phones and tablets: the trade panel is below the chart, so keep Buy / Sell one tap away. */
+function MobileTradeBar({ canBuy, canSell, onTrade }: { canBuy: boolean; canSell: boolean; onTrade: (side: "buy" | "sell") => void }) {
+  return (
+    <div className="fixed inset-x-0 bottom-[5.25rem] z-20 flex gap-2 border-t border-line bg-bg/95 p-2 backdrop-blur md:bottom-9 lg:hidden">
+      <button
+        disabled={!canBuy}
+        onClick={() => onTrade("buy")}
+        className="flex-1 rounded-lg bg-pump py-2.5 font-bold text-black disabled:opacity-40"
+      >
+        Buy
+      </button>
+      <button
+        disabled={!canSell}
+        onClick={() => onTrade("sell")}
+        className="flex-1 rounded-lg bg-rug py-2.5 font-bold text-black disabled:opacity-40"
+      >
+        Sell
+      </button>
     </div>
   );
 }

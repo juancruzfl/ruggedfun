@@ -14,6 +14,8 @@ import { useState } from "react";
 import { useSession } from "@/components/SessionProvider";
 import { useToast } from "@/components/Toaster";
 import { formatSol, formatTokens } from "./format";
+import { isMoonSell, useMoments } from "./moments";
+import { sounds } from "./sound";
 
 export interface QuoteState {
   quote: TradeQuote | null;
@@ -87,6 +89,14 @@ export function useSubmitTrade() {
         positions: body.position ? [body.position, ...others] : others,
       });
       const { trade } = body;
+      const moon = side === "sell" ? isMoonSell(trade.solAmount, trade.realizedPnlSol) : null;
+      if (moon) {
+        useMoments.getState().show({ kind: "moon", tokenId: token.id, ticker: token.ticker, name: token.name, imageUrl: token.imageUrl, ...moon });
+      } else if (side === "buy") {
+        sounds.buy();
+      } else {
+        sounds.sell();
+      }
       toast(
         side === "buy"
           ? `Bought ${formatTokens(trade.tokenAmount)} $${trade.ticker} for ${formatSol(trade.solAmount)} SOL`

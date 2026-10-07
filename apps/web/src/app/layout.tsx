@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { CalloutTicker } from "@/components/CalloutTicker";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { MarketConnection } from "@/components/MarketConnection";
+import { MomentOverlay } from "@/components/MomentOverlay";
 import { OnboardingModal } from "@/components/OnboardingModal";
-import { QuickBuyModal } from "@/components/QuickBuyModal";
+import { QuickTradeModal } from "@/components/QuickTradeModal";
 import { SessionProvider } from "@/components/SessionProvider";
 import { MobileNav } from "@/components/MainNav";
 import { Toaster } from "@/components/Toaster";
@@ -17,7 +18,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: "ruggedfun",
+  title: { default: "ruggedfun", template: "%s · ruggedfun" },
   description: "A play-money memecoin launchpad. Everything rugs. Nothing is real.",
 };
 
@@ -41,7 +42,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </div>
             <MobileNav />
             <CalloutTicker />
-            <QuickBuyModal />
+            <QuickTradeModal />
+            <MomentOverlay />
             <OnboardingModal />
           </Toaster>
         </SessionProvider>

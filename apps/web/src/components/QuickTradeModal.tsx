@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { formatUsd } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
-import { useQuickBuy } from "@/lib/quickBuy";
+import { useQuickTrade } from "@/lib/quickTrade";
 import { Change, StatusBadge, TokenAvatar } from "./TokenBits";
 import { TradeForm } from "./TradeForm";
 
-/** Buy without leaving the page. Opened from the [Buy] buttons on token cards and the live feed. */
-export function QuickBuyModal() {
-  const { tokenId, close } = useQuickBuy();
+/**
+ * Buy or sell without leaving the page. Opened from [Buy] buttons (cards, live feed),
+ * the token page's mobile action bar, and the rug moment's "sell what's left".
+ */
+export function QuickTradeModal() {
+  const { tokenId, side, close } = useQuickTrade();
   const token = useMarket((s) => (tokenId ? s.tokens[tokenId] : undefined));
 
   useEffect(() => {
@@ -30,7 +33,7 @@ export function QuickBuyModal() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="quick-buy-title"
+        aria-labelledby="quick-trade-title"
         className="w-full max-w-sm rounded-t-2xl border border-line bg-panel p-5 shadow-2xl shadow-black/60 sm:rounded-2xl"
       >
         {token ? (
@@ -39,7 +42,7 @@ export function QuickBuyModal() {
               <TokenAvatar src={token.imageUrl} alt="" size={44} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h2 id="quick-buy-title" className="truncate font-bold">
+                  <h2 id="quick-trade-title" className="truncate font-bold">
                     {token.name}
                   </h2>
                   <StatusBadge status={token.status} />
@@ -53,7 +56,7 @@ export function QuickBuyModal() {
                 ×
               </button>
             </div>
-            <TradeForm tokenId={token.id} fixedSide="buy" autoFocus onDone={close} />
+            <TradeForm key={side} tokenId={token.id} fixedSide={side} autoFocus onDone={close} />
             <Link
               href={`/token/${token.ticker}`}
               onClick={close}
@@ -64,7 +67,7 @@ export function QuickBuyModal() {
           </>
         ) : (
           <div className="py-6 text-center">
-            <h2 id="quick-buy-title" className="font-bold">
+            <h2 id="quick-trade-title" className="font-bold">
               This token has stopped trading
             </h2>
             <button onClick={close} className="mt-4 text-sm text-pump hover:underline">

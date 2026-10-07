@@ -10,7 +10,7 @@ import { useSession } from "./SessionProvider";
 const BUY_PRESETS = [0.1, 0.5, 1] as const;
 const SELL_PRESETS = [0.25, 0.5, 0.75, 1] as const;
 
-/** Buy/sell form. `fixedSide` hides the tabs (the quick-buy modal only buys). */
+/** Buy/sell form. `fixedSide` hides the tabs (the quick-trade modal is one side at a time). */
 export function TradeForm({
   tokenId,
   fixedSide,

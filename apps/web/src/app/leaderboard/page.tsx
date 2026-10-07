@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/AutoRefresh";
@@ -14,6 +15,8 @@ import {
 import { getMe } from "@/lib/session";
 
 const TOP = 100;
+
+export const metadata: Metadata = { title: "Leaderboard" };
 
 const TAB_INFO: Record<LeaderboardTab, { label: string; blurb: string; empty: string }> = {
   all: { label: "All-time PnL", blurb: "Net worth vs. the 10 SOL everyone starts with.", empty: "No one has traded yet." },

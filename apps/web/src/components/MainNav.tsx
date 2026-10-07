@@ -39,17 +39,20 @@ export function TopNav() {
           </Link>
         );
       })}
-      <span
-        aria-disabled="true"
-        title="Token launcher coming soon"
-        className="flex cursor-not-allowed items-center gap-1.5 px-3 text-sm font-medium text-muted/50"
+      <Link
+        href="/launch"
+        aria-current={isActive("/launch") ? "page" : undefined}
+        className={`relative flex items-center gap-1.5 px-3 text-sm font-medium transition ${
+          isActive("/launch") ? "text-text" : "text-muted/60 hover:text-muted"
+        }`}
       >
         <span aria-hidden className="hidden grayscale xl:inline">
           🚀
         </span>
         Launch
         <span className="rounded bg-panel-2 px-1 py-px text-[9px] font-bold tracking-wide">SOON</span>
-      </span>
+        {isActive("/launch") && <span aria-hidden className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-pump" />}
+      </Link>
     </nav>
   );
 }
@@ -75,16 +78,18 @@ export function MobileNav() {
           {item.label}
         </Link>
       ))}
-      <span
-        aria-disabled="true"
-        title="Token launcher coming soon"
-        className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] text-muted/50"
+      <Link
+        href="/launch"
+        aria-current={isActive("/launch") ? "page" : undefined}
+        className={`flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium ${
+          isActive("/launch") ? "text-pump" : "text-muted/60"
+        }`}
       >
         <span aria-hidden className="text-lg grayscale">
           🚀
         </span>
         Launch
-      </span>
+      </Link>
     </nav>
   );
 }
