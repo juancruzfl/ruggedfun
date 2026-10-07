@@ -190,7 +190,9 @@ export class PgStore implements MarketStore {
 
   /**
    * Drops 5s candles and bot trades a day after a token ends, and 1m candles after a week.
-   * 5s candles older than a day go too, so the house token (which never ends) doesn't pile them up.
+   * 5s candles older than a day and bot trades older than a week go too, so the house token (which
+   * never ends) doesn't pile them up. Bot holdings are rebuilt from the bot trades that are left
+   * (see loadBotHoldings), so after a restart its bots only hold what they bought in the last week.
    * Net worth snapshots are kept for 48 hours.
    * Player trades are kept for the leaderboard.
    */
@@ -207,6 +209,7 @@ export class PgStore implements MarketStore {
     await this.db
       .delete(trades)
       .where(and(isNull(trades.userId), inArray(trades.tokenId, endedBefore(24 * 3600_000))));
+    await this.db.delete(trades).where(and(isNull(trades.userId), lt(trades.createdAt, new Date(now - 7 * 24 * 3600_000))));
     await this.db.delete(netWorthSnapshots).where(lt(netWorthSnapshots.at, new Date(now - 48 * 3600_000)));
   }
 }

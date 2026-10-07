@@ -1,6 +1,6 @@
 "use client";
 
-import type { MarketToken, TokenSummary } from "@ruggedfun/shared";
+import { isHouseToken, type MarketToken, type TokenSummary } from "@ruggedfun/shared";
 import { CURVE, GRADUATION_PRICE, marketCapSol } from "@ruggedfun/sim";
 import type { ReactNode } from "react";
 import { formatPct, formatSol, formatTokens, formatUsd } from "@/lib/format";
@@ -134,8 +134,25 @@ export function MarketHero({
 
 const GRADUATION_MCAP = marketCapSol(GRADUATION_PRICE);
 
+/** $RUGGEDFUN's curve has no finish line, so there's no progress bar to show. */
+function HouseCurveCard() {
+  return (
+    <section aria-labelledby="curve-title" className="rounded-xl border border-pump/25 bg-panel p-4">
+      <h2 id="curve-title" className="font-semibold">
+        No finish line
+      </h2>
+      <p className="mt-2 text-sm text-muted">
+        $RUGGEDFUN is ruggedfun&apos;s own token. Its bonding curve never completes, so it never graduates, and it
+        can&apos;t rug or die. Buy and sell any time.
+      </p>
+    </section>
+  );
+}
+
 /** pump.fun-style curve card: progress to graduation and what's left, or how it ended. */
 export function BondingCurveCard({ token }: { token: TokenSummary }) {
+  if (isHouseToken(token)) return <HouseCurveCard />;
+
   // A graduated curve stays complete even if the price dips afterwards.
   const progress = token.status === "graduated" ? 1 : token.bondingProgress;
   const pct = Math.round(progress * 100);

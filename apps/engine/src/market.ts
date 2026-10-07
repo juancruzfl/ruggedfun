@@ -319,12 +319,14 @@ export class Market {
     const token = this.live.get(tokenId);
     if (!token || token.summary.endedAt !== null) throw new TradeError("This token has stopped trading", 409);
     const { summary, curve } = token;
+    // The house token never graduates, so its curve never runs out.
+    const uncapped = token.fate === "house";
 
     if (side === "buy") {
       if (summary.status === "rugged" || summary.status === "dead") {
         throw new TradeError("This token was rugged. Buying is disabled.", 409);
       }
-      if (curve.tokensLeft <= 0) throw new TradeError("The bonding curve is complete", 409);
+      if (!uncapped && curve.tokensLeft <= 0) throw new TradeError("The bonding curve is complete", 409);
     } else {
       // Float drift can leave a holder a hair above what the curve has sold.
       amount = Math.min(amount, tokensSold(curve));
@@ -333,7 +335,7 @@ export class Market {
 
     try {
       // At the displayed price: exactly what the browser quoted from the price and curve it was sent.
-      return { quote: quoteTrade(curve, token.displayMultiple, side, amount), summary: { ...summary } };
+      return { quote: quoteTrade(curve, token.displayMultiple, side, amount, { uncapped }), summary: { ...summary } };
     } catch (err) {
       throw new TradeError(err instanceof Error ? err.message : "Trade rejected");
     }

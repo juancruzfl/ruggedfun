@@ -629,6 +629,39 @@ describe("house token", () => {
     expect(log.callouts.some((c) => c.kind === "graduated")).toBe(false);
   });
 
+  it("can be bought past the end of its curve, which would stop any other token", async () => {
+    const market = new Market(new MemoryStore(), recorder().events);
+    const house = (await market.ensureHouseToken(T0))!;
+    const other = await market.launch(T0, { fate: "survive" });
+    for (const token of [house, other]) {
+      const { quote } = market.quote(token.id, "buy", 5000);
+      market.commitTrade(
+        {
+          id: crypto.randomUUID(),
+          tokenId: token.id,
+          ticker: token.ticker,
+          name: token.name,
+          imageUrl: token.imageUrl,
+          side: "buy",
+          solAmount: quote.solAmount,
+          tokenAmount: quote.tokenAmount,
+          price: quote.avgPrice,
+          trader: "whale",
+          isBot: false,
+          isDev: false,
+          realizedPnlSol: null,
+          at: T0,
+          priceAfter: quote.priceAfter,
+          curve: quote.curve,
+        },
+        quote,
+      );
+    }
+    expect(market.summaries().find((t) => t.id === house.id)!.curve.tokensLeft).toBeLessThan(0);
+    expect(market.quote(house.id, "buy", 1).quote.tokenAmount).toBeGreaterThan(0);
+    expect(() => market.quote(other.id, "buy", 1)).toThrow(TradeError);
+  });
+
   it("resumes from its saved price after a restart instead of replaying from launch", async () => {
     const store = new MemoryStore();
     const first = new Market(store, recorder().events, { bots: new BotFlow(6, seededRandom("house-restart")) });

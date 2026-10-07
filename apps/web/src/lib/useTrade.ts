@@ -2,6 +2,7 @@
 
 import {
   DEFAULT_SLIPPAGE_BPS,
+  isHouseToken,
   MIN_BUY_SOL,
   type Me,
   type MarketToken,
@@ -33,7 +34,11 @@ export function quoteFor(token: MarketToken | undefined, me: Me | null, side: Tr
   if (side === "buy" && (token.status === "rugged" || token.status === "dead")) {
     return { quote: null, problem: "Rugged. Buying is disabled." };
   }
-  if (side === "buy" && token.curve.tokensLeft <= 0) return { quote: null, problem: "The bonding curve is complete" };
+  // The house token never graduates, so its curve never runs out (the engine quotes it the same way).
+  const uncapped = isHouseToken(token);
+  if (side === "buy" && !uncapped && token.curve.tokensLeft <= 0) {
+    return { quote: null, problem: "The bonding curve is complete" };
+  }
   if (!(amount > 0)) return { quote: null, problem: null };
 
   const held = me.positions.find((p) => p.tokenId === token.id)?.tokenAmount ?? 0;
@@ -46,7 +51,7 @@ export function quoteFor(token: MarketToken | undefined, me: Me | null, side: Tr
   try {
     const multiple = token.price / spotPrice(token.curve);
     const size = side === "sell" ? Math.min(amount, tokensSold(token.curve)) : amount;
-    return { quote: quoteTrade(token.curve, multiple, side, size), problem: null };
+    return { quote: quoteTrade(token.curve, multiple, side, size, { uncapped }), problem: null };
   } catch (err) {
     return { quote: null, problem: err instanceof Error ? err.message : "Can't quote this trade" };
   }

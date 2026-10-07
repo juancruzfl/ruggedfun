@@ -1,6 +1,6 @@
 "use client";
 
-import type { MarketToken, TokenSummary } from "@ruggedfun/shared";
+import { isHouseToken, type MarketToken, type TokenSummary } from "@ruggedfun/shared";
 import Link from "next/link";
 import { memo } from "react";
 import { formatUsd, timeAgo } from "@/lib/format";
@@ -56,8 +56,17 @@ export const TokenCard = memo(function TokenCard({ token }: { token: CardToken }
       )}
 
       <div className="pointer-events-none mt-2 flex items-center gap-2">
-        <ProgressBar value={token.bondingProgress} />
-        <span className="w-9 text-right font-mono text-[11px] text-muted">{Math.round(token.bondingProgress * 100)}%</span>
+        {isHouseToken(token) ? (
+          // It never graduates, so a progress bar toward graduation would mislead.
+          <span className="flex-1 text-[11px] font-bold tracking-wide text-pump">OFFICIAL TOKEN · NEVER GRADUATES</span>
+        ) : (
+          <>
+            <ProgressBar value={token.bondingProgress} />
+            <span className="w-9 text-right font-mono text-[11px] text-muted">
+              {Math.round(token.bondingProgress * 100)}%
+            </span>
+          </>
+        )}
         {!gone && <BuyButton tokenId={token.id} ticker={token.ticker} className="px-2.5 py-1 text-xs" />}
       </div>
     </div>
