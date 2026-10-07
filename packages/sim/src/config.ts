@@ -61,6 +61,18 @@ export const FATE_TUNING = {
   },
 };
 
+/**
+ * The house token wanders around a fixed multiple forever: a slow level (minutes to hours) plus
+ * the usual fast noise. Level std ≈ levelSigma / sqrt(2 * levelReversion) ≈ 10%; with the noise and
+ * jumps a day ranges about 5x–11x, well under graduation (~14.7x).
+ */
+export const HOUSE_TUNING = {
+  multiple: 7,
+  levelReversion: 0.0005,
+  levelSigma: 0.003,
+  sigma: 0.01,
+};
+
 /** Ornstein-Uhlenbeck pull of the noise back toward the target curve, per tick. Noise std ≈ sigma / sqrt(2 * reversion). */
 export const NOISE_REVERSION = 0.02;
 /** Chance per tick of a fat-tailed move (a whale buy or panic sell). */

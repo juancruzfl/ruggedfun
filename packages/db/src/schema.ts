@@ -14,7 +14,8 @@ import { sql } from "drizzle-orm";
 
 // Money is play money, so doubles are fine and keep the math simple.
 
-export const fateEnum = pgEnum("fate", ["rug", "slow_death", "survive", "moon"]);
+// "house" is the launchpad's own token ($RUGGEDFUN), which never ends.
+export const fateEnum = pgEnum("fate", ["rug", "slow_death", "survive", "moon", "house"]);
 export const tokenStatusEnum = pgEnum("token_status", ["live", "graduated", "rugged", "dead"]);
 export const tradeSideEnum = pgEnum("trade_side", ["buy", "sell"]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { trendingScore, type MarketToken } from "@ruggedfun/shared";
+import { isHouseToken, trendingScore, type MarketToken } from "@ruggedfun/shared";
 import Link from "next/link";
 import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -53,6 +53,8 @@ export function TrendingRow() {
     useShallow((s) => {
       const now = Date.now();
       return Object.values(s.tokens)
+        // $RUGGEDFUN has its own spot above the row.
+        .filter((t) => !isHouseToken(t))
         .map((t) => ({ t, score: trendingScore(t, now) }))
         .filter(({ score }) => score > -Infinity)
         .sort((a, b) => b.score - a.score)

@@ -43,6 +43,13 @@
       "when": 1791348503954,
       "tag": "0005_player_launches",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791401455988,
+      "tag": "0006_house_token",
+      "breakpoints": true
     }
   ]
 }

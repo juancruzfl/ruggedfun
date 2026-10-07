@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { createRng, FATE_WEIGHTS, GRADUATION_MULTIPLE, rollFate, simulatePath, type Fate } from "../src";
+import {
+  createRng,
+  FATE_WEIGHTS,
+  GRADUATION_MULTIPLE,
+  HOUSE_TUNING,
+  MAX_NON_MOON_MULTIPLE,
+  rollFate,
+  simulatePath,
+  TokenSim,
+  type Fate,
+} from "../src";
 
 const SAMPLES = 150;
 const seeds = (prefix: string) => Array.from({ length: SAMPLES }, (_, i) => `${prefix}-${i}`);
@@ -71,5 +81,43 @@ describe("forced fates", () => {
       const natural = simulatePath(seed);
       expect(simulatePath(seed, { fate: natural.sim.fate }).multiples).toEqual(natural.multiples);
     }
+  });
+});
+
+describe("house token", () => {
+  it("never ends and stays around its multiple, below graduation", () => {
+    const sim = new TokenSim("house");
+    const house = new TokenSim("house", { fate: "house" });
+    expect(sim.fate).not.toBe("house");
+    expect(house.multiple).toBe(HOUSE_TUNING.multiple);
+
+    const day = 24 * 3600;
+    let sumLog = 0;
+    let max = 0;
+    for (let i = 0; i < day; i++) {
+      const m = house.step();
+      sumLog += Math.log(m);
+      max = Math.max(max, m);
+    }
+    expect(house.done).toBe(false);
+    expect(house.tick).toBe(day);
+    expect(house.plan.rugTick).toBeUndefined();
+    expect(max).toBeLessThan(MAX_NON_MOON_MULTIPLE * (1 + 1e-9));
+    expect(Math.exp(sumLog / day) / HOUSE_TUNING.multiple).toBeGreaterThan(0.7);
+    expect(Math.exp(sumLog / day) / HOUSE_TUNING.multiple).toBeLessThan(1.3);
+  });
+
+  it("resumes from a saved tick and multiple instead of replaying", () => {
+    const sim = new TokenSim("house", { fate: "house", resume: { tick: 5_000_000, multiple: 6.5 } });
+    expect(sim.tick).toBe(5_000_000);
+    expect(sim.multiple).toBe(6.5);
+    sim.step();
+    expect(sim.tick).toBe(5_000_001);
+    expect(sim.multiple).toBeGreaterThan(6);
+    expect(sim.multiple).toBeLessThan(7);
+  });
+
+  it("can't be run to the end", () => {
+    expect(() => simulatePath("house", { fate: "house" })).toThrow();
   });
 });

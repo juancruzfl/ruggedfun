@@ -1,3 +1,4 @@
+import { HouseTokenHero } from "@/components/HouseTokenHero";
 import { TokenGrid } from "@/components/TokenGrid";
 import { TrendingRow } from "@/components/TrendingRow";
 
@@ -11,6 +12,7 @@ export default function Home() {
   return (
     <div className="relative isolate space-y-8 px-4 py-6">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96" style={{ backgroundImage: glow }} />
+      <HouseTokenHero />
       <TrendingRow />
       <TokenGrid />
     </div>

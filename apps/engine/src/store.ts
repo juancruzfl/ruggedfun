@@ -190,6 +190,7 @@ export class PgStore implements MarketStore {
 
   /**
    * Drops 5s candles and bot trades a day after a token ends, and 1m candles after a week.
+   * 5s candles older than a day go too, so the house token (which never ends) doesn't pile them up.
    * Net worth snapshots are kept for 48 hours.
    * Player trades are kept for the leaderboard.
    */
@@ -199,6 +200,7 @@ export class PgStore implements MarketStore {
     await this.db
       .delete(candles)
       .where(and(sql`${candles.interval} = 5`, inArray(candles.tokenId, endedBefore(24 * 3600_000))));
+    await this.db.delete(candles).where(and(sql`${candles.interval} = 5`, lt(candles.ts, new Date(now - 24 * 3600_000))));
     await this.db
       .delete(candles)
       .where(and(sql`${candles.interval} = 60`, inArray(candles.tokenId, endedBefore(7 * 24 * 3600_000))));

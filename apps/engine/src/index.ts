@@ -34,6 +34,13 @@ async function main() {
     }
     log(`bootstrapped ${env.bootstrapTokens} tokens`);
   }
+  try {
+    const house = await market.ensureHouseToken(Date.now());
+    if (house) log(`launched the house token $${house.ticker}`);
+  } catch (err) {
+    // E.g. its ticker was taken before it was reserved. The market runs fine without it.
+    log("could not launch the house token", err);
+  }
   await market.flush();
 
   const tickTimer = setInterval(() => market.tick(Date.now()), 1000);

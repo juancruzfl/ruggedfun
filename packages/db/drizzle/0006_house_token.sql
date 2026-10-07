@@ -1,0 +1,1 @@
+ALTER TYPE "public"."fate" ADD VALUE 'house';

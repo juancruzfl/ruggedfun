@@ -1,5 +1,13 @@
-import type { Callout, Candle, PriceTick, TokenStatusChange, TokenSummary, TradeEvent } from "@ruggedfun/shared";
-import { createRng, GRADUATION_PRICE, spotPrice } from "@ruggedfun/sim";
+import {
+  HOUSE_TOKEN,
+  type Callout,
+  type Candle,
+  type PriceTick,
+  type TokenStatusChange,
+  type TokenSummary,
+  type TradeEvent,
+} from "@ruggedfun/shared";
+import { createRng, GRADUATION_PRICE, LAUNCH_PRICE, spotPrice } from "@ruggedfun/sim";
 import { describe, expect, it } from "vitest";
 import { BotFlow, type BotOrder, type BotView } from "../src/bots";
 import {
@@ -553,5 +561,88 @@ describe("Market", () => {
       );
       expect(small.log.callouts.some((c) => c.kind === "whale")).toBe(false);
     });
+  });
+});
+
+describe("house token", () => {
+  it("launches once, with its own name and no dev buy", async () => {
+    const store = new MemoryStore();
+    const { log, events } = recorder();
+    const market = new Market(store, events, { bots: new BotFlow(6, seededRandom("house-launch")) });
+    const house = await market.ensureHouseToken(T0);
+    expect(house).toMatchObject({ ...HOUSE_TOKEN, byPlayer: false, status: "live" });
+    expect(house).not.toHaveProperty("seed");
+    expect(house).not.toHaveProperty("fate");
+    expect(await market.ensureHouseToken(T0 + 1000)).toBeNull();
+    expect(log.launched).toHaveLength(1);
+    expect([...store.tokens.values()][0]!.fate).toBe("house");
+
+    market.tick(T0 + 1000);
+    expect(log.trades.some((t) => t.isDev)).toBe(false);
+  });
+
+  it("trades for hours without rugging, dying or graduating", async () => {
+    const { log, events } = recorder();
+    const market = new Market(new MemoryStore(), events, { bots: new BotFlow(6, seededRandom("house-run")) });
+    await market.ensureHouseToken(T0);
+    for (let now = T0 + 1000; now <= T0 + 6 * 3600_000; now += 1000) market.tick(now);
+
+    const [house] = market.summaries();
+    expect(house).toMatchObject({ status: "live", endedAt: null, graduatedAt: null });
+    expect(log.status).toHaveLength(0);
+    expect(log.trades.length).toBeGreaterThan(100);
+    const multiple = house!.price / LAUNCH_PRICE;
+    expect(multiple).toBeGreaterThan(3);
+    expect(multiple).toBeLessThan(GRADUATION_PRICE / LAUNCH_PRICE);
+  });
+
+  it("doesn't graduate even when players buy it past the graduation price", async () => {
+    const { log, events } = recorder();
+    const market = new Market(new MemoryStore(), events);
+    const house = (await market.ensureHouseToken(T0))!;
+    for (let i = 0; i < 20 && market.summaries()[0]!.price < GRADUATION_PRICE; i++) {
+      const { quote } = market.quote(house.id, "buy", 5);
+      market.commitTrade(
+        {
+          id: crypto.randomUUID(),
+          tokenId: house.id,
+          ticker: house.ticker,
+          name: house.name,
+          imageUrl: house.imageUrl,
+          side: "buy",
+          solAmount: quote.solAmount,
+          tokenAmount: quote.tokenAmount,
+          price: quote.avgPrice,
+          trader: "whale",
+          isBot: false,
+          isDev: false,
+          realizedPnlSol: null,
+          at: T0,
+          priceAfter: quote.priceAfter,
+          curve: quote.curve,
+        },
+        quote,
+      );
+    }
+    expect(market.summaries()[0]!.price).toBeGreaterThanOrEqual(GRADUATION_PRICE);
+    expect(market.summaries()[0]!.status).toBe("live");
+    expect(log.callouts.some((c) => c.kind === "graduated")).toBe(false);
+  });
+
+  it("resumes from its saved price after a restart instead of replaying from launch", async () => {
+    const store = new MemoryStore();
+    const first = new Market(store, recorder().events, { bots: new BotFlow(6, seededRandom("house-restart")) });
+    await first.ensureHouseToken(T0);
+    for (let now = T0 + 1000; now <= T0 + 600_000; now += 1000) first.tick(now);
+    await first.flush();
+    const saved = first.summaries()[0]!;
+
+    // A month later: replaying 2.6M ticks would be slow; resuming is instant.
+    const second = new Market(store, recorder().events);
+    const started = performance.now();
+    await second.restore(T0 + 30 * 86400_000);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(await second.ensureHouseToken(T0 + 30 * 86400_000)).toBeNull();
+    expect(second.summaries()[0]!.price).toBeCloseTo(saved.price, 15);
   });
 });

@@ -21,6 +21,7 @@ describe("validateLaunch", () => {
     expect(validateLaunch({ ...good, name: "<script>" }).name).toMatch(/Letters/);
     expect(validateLaunch({ ...good, ticker: "$ab-c" }).ticker).toMatch(/Letters and numbers/);
     expect(validateLaunch({ ...good, ticker: "$sol" }).ticker).toMatch(/real coin/);
+    expect(validateLaunch({ ...good, ticker: "$ruggedfun" }).ticker).toMatch(/ruggedfun's own/);
     expect(validateLaunch({ ...good, ticker: "WAYTOOLONGTICKER" }).ticker).toMatch(/At most/);
     expect(validateLaunch({ ...good, description: "x".repeat(141) }).description).toMatch(/At most/);
     expect(validateLaunch({ ...good, name: "Nazi Frog" }).name).toBeDefined();
