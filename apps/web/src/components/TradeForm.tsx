@@ -42,20 +42,21 @@ export function TradeForm({
     setInput(value > 0 ? String(value) : "");
   }
 
-  async function onSubmit(e: FormEvent) {
+  function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token || !quote || problem) return;
-    if (await submit(token, side, amount, quote)) {
-      setInput("");
-      onDone?.();
-    }
+    // Not awaited: like a real launchpad, the next order can go out before this one confirms, and the
+    // amount stays filled in for it. The trade's notification card takes it from here, so the
+    // quick-trade modal can close right away.
+    void submit(token, side, amount, quote);
+    onDone?.();
   }
 
   const ticker = token?.ticker ?? tickerProp ?? "";
   const unit = side === "buy" ? "SOL" : `$${ticker}`;
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <form onSubmit={onSubmit} className="space-y-3" aria-busy={pending}>
       {!fixedSide && (
         <div role="tablist" className="grid grid-cols-2 gap-1 rounded-lg bg-bg p-1">
           {(["buy", "sell"] as const).map((s) => (
@@ -165,12 +166,12 @@ export function TradeForm({
 
       <button
         type="submit"
-        disabled={!quote || Boolean(problem) || pending}
+        disabled={!quote || Boolean(problem)}
         className={`w-full rounded-lg py-2.5 font-bold transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-panel-2 disabled:text-muted disabled:hover:brightness-100 ${
           side === "buy" ? "bg-pump text-pump-ink focus-visible:outline-pump" : "bg-rug text-rug-ink focus-visible:outline-rug"
         }`}
       >
-        {pending ? "Sending…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
+        {side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
       </button>
     </form>
   );

@@ -2,17 +2,20 @@
 
 import { ALERT_STEP, evaluateAlert, type AlertState } from "@ruggedfun/shared";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { formatSol } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
 import { positionValue } from "@/lib/positionValue";
 import { alertHeadline, signedSol, useNotifications, type PositionAlert } from "@/lib/notifications";
 import { useQuickTrade } from "@/lib/quickTrade";
+import { useTradeStatus } from "@/lib/tradeStatus";
 import { sounds } from "@/lib/sound";
 import { useSession } from "./SessionProvider";
 import { TokenAvatar } from "./TokenBits";
+import { NotificationStack, useStackExpanded, type StackItem } from "./NotificationStack";
+import { tradeCardFrame, TradeStatusCard } from "./TradeStatusCard";
 
-const VISIBLE_MS = 8000;
+const VISIBLE_MS = 2500;
 
 function showDesktopNotification(alert: PositionAlert) {
   if (!("Notification" in window) || Notification.permission !== "granted" || !document.hidden) return;
@@ -87,24 +90,17 @@ function usePositionAlertWatcher() {
 function AlertCard({ alert }: { alert: PositionAlert }) {
   const hide = useNotifications((s) => s.hide);
   const openTrade = useQuickTrade((s) => s.open);
-  const [hovered, setHovered] = useState(false);
+  const paused = useStackExpanded();
   const up = alert.levelPct >= 0;
 
   useEffect(() => {
-    if (hovered) return;
+    if (paused) return;
     const timer = setTimeout(() => hide(alert.id), VISIBLE_MS);
     return () => clearTimeout(timer);
-  }, [hovered, hide, alert.id]);
+  }, [paused, hide, alert.id]);
 
   return (
-    <div
-      role="status"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={`pointer-events-auto flex gap-3 rounded-xl border bg-panel p-3 shadow-2xl shadow-black/60 ${
-        up ? "border-pump/40" : "border-rug/50"
-      }`}
-    >
+    <div role="status" className="flex gap-3 p-3">
       <TokenAvatar src={alert.imageUrl} alt="" size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
@@ -147,25 +143,30 @@ function AlertCard({ alert }: { alert: PositionAlert }) {
   );
 }
 
-/** Position-alert watcher plus the stack of alert cards in the top-right corner. */
+/** Position-alert watcher plus the notification stack in the top-right corner (your trades and alerts). */
 export function PositionAlerts() {
   usePositionAlertWatcher();
   const load = useNotifications((s) => s.load);
   const visible = useNotifications((s) => s.visible);
   const history = useNotifications((s) => s.history);
+  const trades = useTradeStatus((s) => s.trades);
   useEffect(() => load(), [load]);
 
   const cards = visible.map((id) => history.find((a) => a.id === id)).filter((a): a is PositionAlert => Boolean(a));
-  if (cards.length === 0) return null;
 
-  return (
-    <div
-      aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 top-16 z-[35] flex flex-col gap-2 sm:left-auto sm:w-80"
-    >
-      {cards.map((alert) => (
-        <AlertCard key={alert.id} alert={alert} />
-      ))}
-    </div>
-  );
+  const items: StackItem[] = [
+    ...trades.map((trade) => ({
+      key: `trade-${trade.id}`,
+      at: trade.startedAt,
+      frame: tradeCardFrame(trade),
+      content: <TradeStatusCard trade={trade} />,
+    })),
+    ...cards.map((alert) => ({
+      key: `alert-${alert.id}`,
+      at: alert.at,
+      frame: alert.levelPct >= 0 ? "border-pump/40" : "border-rug/50",
+      content: <AlertCard alert={alert} />,
+    })),
+  ];
+  return <NotificationStack items={items} />;
 }
