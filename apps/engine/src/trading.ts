@@ -18,6 +18,20 @@ import {
 import { and, count, eq, gt, sql } from "drizzle-orm";
 import { TickerTakenError, TradeError, type Market } from "./market";
 
+/** Chance a trade lands during "congestion" and takes 2–3x longer to confirm, like a busy network. */
+const CONGESTION_CHANCE = 0.05;
+
+/**
+ * How long a trade waits before it's filled, in ms: uniform between `min` and `max`, sometimes
+ * longer. Real Solana trades confirm in ~0.4–2s, and the price keeps moving in the meantime.
+ * 0 / 0 turns the delay off.
+ */
+export function confirmationDelayMs(min: number, max: number, random: () => number = Math.random): number {
+  if (max <= 0) return 0;
+  const base = min + (max - min) * random();
+  return random() < CONGESTION_CHANCE ? base * (2 + random()) : base;
+}
+
 /** Positions smaller than this many tokens are closed. */
 const DUST_TOKENS = 1e-6;
 /** Float tolerance when comparing balances. */
@@ -75,9 +89,10 @@ export function parseTradeRequest(body: unknown): UserTradeRequest {
 }
 
 /**
- * Executes player trades one at a time. Each trade is priced against the in-memory curve,
- * written to the database in a single transaction (wallet, position, trade, curve), and only
- * then applied to the live market. Running them serially keeps the curve consistent.
+ * Executes player trades one at a time. Each trade waits out a simulated confirmation delay, then
+ * is priced against the in-memory curve, written to the database in a single transaction (wallet,
+ * position, trade, curve), and only then applied to the live market. Running the fills serially
+ * keeps the curve consistent.
  */
 export class Trading {
   private queue: Promise<unknown> = Promise.resolve();
@@ -85,9 +100,17 @@ export class Trading {
   constructor(
     private readonly market: Market,
     private readonly db: Db,
+    /** Simulated confirmation time per trade, in ms (see confirmationDelayMs). None by default. */
+    private readonly confirmationDelay: () => number = () => 0,
   ) {}
 
-  execute(request: UserTradeRequest): Promise<TradeResult> {
+  async execute(request: UserTradeRequest): Promise<TradeResult> {
+    // Fail fast on trades that can't happen at all (token stopped, nothing to sell...).
+    this.market.quote(request.tokenId, request.side, request.amount);
+    // Wait outside the queue, so one player's confirmation doesn't hold up everyone else's fills.
+    // The fill is priced when the wait ends, so the price can move (and the slippage check matter).
+    const delay = this.confirmationDelay();
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     return this.enqueue(() => this.run(request));
   }
 
