@@ -50,6 +50,13 @@
       "when": 1791401455988,
       "tag": "0006_house_token",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791442869320,
+      "tag": "0007_candle_intervals",
+      "breakpoints": true
     }
   ]
 }
