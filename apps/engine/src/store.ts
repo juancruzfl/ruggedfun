@@ -88,6 +88,28 @@ export class PgStore implements MarketStore {
     return result;
   }
 
+  async loadLatestCandles(tokenIds: string[]): Promise<Candle[]> {
+    if (tokenIds.length === 0) return [];
+    const rows = await this.sql<
+      { token_id: string; interval: number; ts: string; open: number; high: number; low: number; close: number; volume: number }[]
+    >`
+      select distinct on (token_id, interval) token_id, interval, ts, open, high, low, close, volume
+      from candles
+      where token_id = any(${tokenIds}::uuid[])
+      order by token_id, interval, ts desc`;
+    return rows.map((r) => ({
+      tokenId: r.token_id,
+      interval: r.interval as Candle["interval"],
+      // The raw client returns timestamps as text.
+      time: new Date(r.ts).getTime() / 1000,
+      open: r.open,
+      high: r.high,
+      low: r.low,
+      close: r.close,
+      volume: r.volume,
+    }));
+  }
+
   async loadLive(): Promise<StoredToken[]> {
     const rows = await this.db.select().from(tokens).where(isNull(tokens.endedAt));
     return rows.map(toStored);
@@ -189,8 +211,10 @@ export class PgStore implements MarketStore {
   }
 
   /**
-   * Drops 5s candles and bot trades a day after a token ends, and 1m candles after a week.
-   * 5s candles older than a day go too, so the house token (which never ends) doesn't pile them up.
+   * Drops 5s candles and bot trades a day after a token ends, and longer candles (1m, 5m, 1d) after a week.
+   * 5s candles older than a day and bot trades older than a week go too, so the house token (which
+   * never ends) doesn't pile them up. Bot holdings are rebuilt from the bot trades that are left
+   * (see loadBotHoldings), so after a restart its bots only hold what they bought in the last week.
    * Net worth snapshots are kept for 48 hours.
    * Player trades are kept for the leaderboard.
    */
@@ -203,10 +227,11 @@ export class PgStore implements MarketStore {
     await this.db.delete(candles).where(and(sql`${candles.interval} = 5`, lt(candles.ts, new Date(now - 24 * 3600_000))));
     await this.db
       .delete(candles)
-      .where(and(sql`${candles.interval} = 60`, inArray(candles.tokenId, endedBefore(7 * 24 * 3600_000))));
+      .where(and(sql`${candles.interval} <> 5`, inArray(candles.tokenId, endedBefore(7 * 24 * 3600_000))));
     await this.db
       .delete(trades)
       .where(and(isNull(trades.userId), inArray(trades.tokenId, endedBefore(24 * 3600_000))));
+    await this.db.delete(trades).where(and(isNull(trades.userId), lt(trades.createdAt, new Date(now - 7 * 24 * 3600_000))));
     await this.db.delete(netWorthSnapshots).where(lt(netWorthSnapshots.at, new Date(now - 48 * 3600_000)));
   }
 }

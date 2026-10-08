@@ -62,6 +62,8 @@ export interface MarketStore {
   insertToken(token: StoredToken): Promise<void>;
   /** Tokens that haven't ended yet. */
   loadLive(): Promise<StoredToken[]>;
+  /** The newest stored candle for each of the given tokens and each interval. */
+  loadLatestCandles(tokenIds: string[]): Promise<Candle[]>;
   /** Each bot's net token holdings (buys minus sells), per token, for the given tokens. */
   loadBotHoldings(tokenIds: string[]): Promise<Map<string, Map<string, number>>>;
   /** `trades` are bot trades; player trades are written by the trade transaction. */
@@ -197,7 +199,11 @@ export class Market {
 
   async restore(now: number): Promise<void> {
     const stored = await this.store.loadLive();
-    const holdings = await this.store.loadBotHoldings(stored.map((s) => s.summary.id));
+    const ids = stored.map((s) => s.summary.id);
+    const holdings = await this.store.loadBotHoldings(ids);
+    const latest = new Map<string, Candle>();
+    for (const c of await this.store.loadLatestCandles(ids)) latest.set(`${c.tokenId}:${c.interval}`, c);
+    const candlesSince = now - RESTORE_CANDLE_WINDOW_MS;
     for (const s of stored) {
       // The house token never ends, so replaying it from launch would take longer every restart.
       // It picks up from its saved price instead; everything else replays its fate path.
@@ -213,7 +219,14 @@ export class Market {
           : new TokenSim(s.seed, { fate: s.fate });
       const token = this.track(s, sim);
       token.botHoldings = holdings.get(s.summary.id) ?? new Map();
-      this.advance(token, now, { quiet: true, candlesSince: now - RESTORE_CANDLE_WINDOW_MS });
+      // The replay below only rebuilds candles from the last few minutes. A candle that started earlier
+      // (a 1d candle, or anything for the house token, which doesn't replay) carries on from what was
+      // stored instead of being rebuilt from those minutes alone.
+      for (const builder of token.candles) {
+        const candle = latest.get(`${s.summary.id}:${builder.interval}`);
+        if (candle && (s.fate === "house" || candle.time * 1000 < candlesSince)) builder.seed(candle);
+      }
+      this.advance(token, now, { quiet: true, candlesSince });
     }
   }
 
@@ -319,12 +332,14 @@ export class Market {
     const token = this.live.get(tokenId);
     if (!token || token.summary.endedAt !== null) throw new TradeError("This token has stopped trading", 409);
     const { summary, curve } = token;
+    // The house token never graduates, so its curve never runs out.
+    const uncapped = token.fate === "house";
 
     if (side === "buy") {
       if (summary.status === "rugged" || summary.status === "dead") {
         throw new TradeError("This token was rugged. Buying is disabled.", 409);
       }
-      if (curve.tokensLeft <= 0) throw new TradeError("The bonding curve is complete", 409);
+      if (!uncapped && curve.tokensLeft <= 0) throw new TradeError("The bonding curve is complete", 409);
     } else {
       // Float drift can leave a holder a hair above what the curve has sold.
       amount = Math.min(amount, tokensSold(curve));
@@ -333,7 +348,7 @@ export class Market {
 
     try {
       // At the displayed price: exactly what the browser quoted from the price and curve it was sent.
-      return { quote: quoteTrade(curve, token.displayMultiple, side, amount), summary: { ...summary } };
+      return { quote: quoteTrade(curve, token.displayMultiple, side, amount, { uncapped }), summary: { ...summary } };
     } catch (err) {
       throw new TradeError(err instanceof Error ? err.message : "Trade rejected");
     }

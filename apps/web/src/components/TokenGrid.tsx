@@ -1,6 +1,6 @@
 "use client";
 
-import type { MarketToken, TokenSummary } from "@ruggedfun/shared";
+import { isHouseToken, type MarketToken, type TokenSummary } from "@ruggedfun/shared";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useMarket } from "@/lib/marketStore";
@@ -23,7 +23,8 @@ function selectTab(tokens: Record<string, MarketToken>, graveyard: TokenSummary[
       return all.sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_CARDS);
     case "graduating":
       return all
-        .filter((t) => t.status === "live")
+        // $RUGGEDFUN never graduates, however far along its price puts it.
+        .filter((t) => t.status === "live" && !isHouseToken(t))
         .sort((a, b) => b.bondingProgress - a.bondingProgress)
         .slice(0, MAX_CARDS);
     case "top":

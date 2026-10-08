@@ -29,6 +29,16 @@ describe("bonding curve", () => {
     expect(() => quoteBuy(fill.state, 1)).toThrow();
   });
 
+  it("keeps filling past the end of the curve when uncapped, and every token can still be sold back", () => {
+    const fill = quoteBuy(initialCurve(), 1000, true);
+    expect(fill.state.tokensLeft).toBeLessThan(0);
+    expect(fill.tokenAmount).toBeGreaterThan(CURVE.curveTokens);
+    const more = quoteBuy(fill.state, 1, true);
+    expect(more.tokenAmount).toBeGreaterThan(0);
+    const sell = quoteSell(more.state, fill.tokenAmount + more.tokenAmount);
+    expect(sell.state.tokensLeft).toBeCloseTo(CURVE.curveTokens, 3);
+  });
+
   it("rejects selling more than was bought", () => {
     const buy = quoteBuy(initialCurve(), 1);
     expect(() => quoteSell(buy.state, buy.tokenAmount * 2)).toThrow();

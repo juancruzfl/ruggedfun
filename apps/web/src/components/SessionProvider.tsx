@@ -1,11 +1,12 @@
 "use client";
 
 import type { Me } from "@ruggedfun/shared";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 interface SessionContextValue {
   me: Me | null;
-  setMe: (me: Me | null) => void;
+  /** Takes an update function too, for results that land while other changes are in flight. */
+  setMe: Dispatch<SetStateAction<Me | null>>;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);

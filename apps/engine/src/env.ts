@@ -31,6 +31,9 @@ export const env = {
   launchMinSeconds: number("LAUNCH_MIN_SECONDS", 5),
   launchMaxSeconds: number("LAUNCH_MAX_SECONDS", 20),
   bootstrapTokens: number("BOOTSTRAP_TOKENS", 12),
+  /** Simulated confirmation time for player trades, in ms (sometimes 2–3x longer). 0 / 0 turns it off. */
+  tradeDelayMinMs: number("TRADE_DELAY_MIN_MS", 400),
+  tradeDelayMaxMs: number("TRADE_DELAY_MAX_MS", 1500),
   /** Global cap on bot trades per second across all tokens. 0 turns bots off. */
   botTradesPerSecond: number("BOT_TRADES_PER_SECOND", 6),
 };

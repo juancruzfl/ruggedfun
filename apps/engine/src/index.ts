@@ -4,7 +4,7 @@ import { BotFlow } from "./bots";
 import { Market } from "./market";
 import { createRealtimeServer } from "./server";
 import { PgStore } from "./store";
-import { Trading } from "./trading";
+import { confirmationDelayMs, Trading } from "./trading";
 
 const FLUSH_MS = 5_000;
 const PRUNE_MS = 60 * 60_000;
@@ -22,7 +22,8 @@ async function main() {
   const store = new PgStore(db, client);
   const realtime = createRealtimeServer(env.webOrigins, env.engineSecret);
   const market = new Market(store, realtime.events, { bots: new BotFlow(env.botTradesPerSecond) });
-  realtime.attach(market, new Trading(market, db));
+  const delay = () => confirmationDelayMs(env.tradeDelayMinMs, env.tradeDelayMaxMs);
+  realtime.attach(market, new Trading(market, db, delay));
 
   await market.restore(Date.now());
   log(`restored ${market.size} live tokens`);

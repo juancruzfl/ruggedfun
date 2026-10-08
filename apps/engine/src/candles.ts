@@ -11,6 +11,15 @@ export class CandleBuilder {
     readonly interval: CandleInterval,
   ) {}
 
+  /**
+   * Picks up a stored candle as the open one, so points after a restart extend it instead of
+   * starting the bucket over (which would lose its open, high and low).
+   */
+  seed(candle: Candle): void {
+    this.current = { ...candle };
+    this.lastClose = candle.close;
+  }
+
   /** Adds a price at `timeMs` and returns the candle it landed in. */
   add(timeMs: number, price: number, volume = 0): Candle {
     // A point that arrives late (a trade that committed after the next tick) folds into the open candle.

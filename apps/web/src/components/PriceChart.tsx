@@ -16,7 +16,9 @@ import { formatUsd } from "@/lib/format";
 import { useMarket } from "@/lib/marketStore";
 import { getSocket } from "@/lib/socket";
 
-export type ChartInterval = 1 | 5 | 60;
+export type ChartInterval = 1 | 5 | 60 | 300 | 86400;
+/** What the chart plots: market cap or the per-token price, both in USD. */
+export type ChartMode = "mcap" | "price";
 
 type RawCandle = Pick<Candle, "time" | "open" | "high" | "low" | "close" | "volume">;
 
@@ -27,17 +29,24 @@ const MUTED = "#95a29c";
 const PANEL_2 = "#19201d";
 const LINE = "#252e2a";
 
-/** Price per token (SOL) → market cap in USD, which is what launchpad charts show. */
-const toMcapUsd = (price: number) => price * CURVE.totalSupply * SOL_USD;
+/** Price per token (SOL) → what the chart shows: market cap in USD, or the token's price in USD. */
+const SCALE: Record<ChartMode, number> = { mcap: CURVE.totalSupply * SOL_USD, price: SOL_USD };
 
-function toBar(c: RawCandle) {
-  return {
-    time: c.time as UTCTimestamp,
-    open: toMcapUsd(c.open),
-    high: toMcapUsd(c.high),
-    low: toMcapUsd(c.low),
-    close: toMcapUsd(c.close),
-  };
+/** USD prices are tiny ($0.00000297), so they get enough decimals to show three significant digits. */
+function formatPriceUsd(p: number): string {
+  if (!(p > 0)) return "$0";
+  if (p >= 1) return `$${p.toFixed(2)}`;
+  return `$${p.toFixed(Math.min(12, -Math.floor(Math.log10(p)) + 2))}`;
+}
+
+const PRICE_FORMAT = {
+  mcap: { type: "custom" as const, formatter: (p: number) => formatUsd(p / SOL_USD), minMove: 0.01 },
+  price: { type: "custom" as const, formatter: formatPriceUsd, minMove: 1e-12 },
+};
+
+function toBar(c: RawCandle, mode: ChartMode) {
+  const k = SCALE[mode];
+  return { time: c.time as UTCTimestamp, open: c.open * k, high: c.high * k, low: c.low * k, close: c.close * k };
 }
 
 function toVolume(c: RawCandle) {
@@ -52,15 +61,21 @@ const localTime = (t: number, seconds: boolean) =>
   new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: seconds ? "2-digit" : undefined });
 
 /**
- * Market-cap candlesticks (log scale, so rugs read as cliffs) with volume underneath.
- * 5s and 1m load history from the database, then follow live candles from the engine.
+ * Market-cap (or price) candlesticks on a log scale, so rugs read as cliffs, with volume underneath.
+ * 5s, 1m, 5m and 1d load history from the database, then follow live candles from the engine.
  * 1s isn't stored, so it's built in the browser from live ticks starting now.
  */
-export function PriceChart({ tokenId, interval }: { tokenId: string; interval: ChartInterval }) {
+export function PriceChart({ tokenId, interval, mode }: { tokenId: string; interval: ChartInterval; mode: ChartMode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const barsRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  /** The candles on screen, in SOL, so switching mode can redraw them without refetching. */
+  const rawRef = useRef<RawCandle[]>([]);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const intervalRef = useRef(interval);
+  intervalRef.current = interval;
 
   useEffect(() => {
     const chart = createChart(containerRef.current!, {
@@ -72,9 +87,15 @@ export function PriceChart({ tokenId, interval }: { tokenId: string; interval: C
         borderColor: LINE,
         timeVisible: true,
         secondsVisible: true,
-        tickMarkFormatter: (t: number) => localTime(t, false),
+        // Daily candles are labeled by date; everything else by time of day.
+        tickMarkFormatter: (t: number) =>
+          intervalRef.current >= 86400 ? new Date(t * 1000).toLocaleDateString([], { month: "short", day: "numeric" }) : localTime(t, false),
       },
-      localization: { timeFormatter: (t: number) => localTime(t, true), priceFormatter: (p: number) => formatUsd(p / SOL_USD) },
+      localization: {
+        timeFormatter: (t: number) =>
+          intervalRef.current >= 86400 ? new Date(t * 1000).toLocaleDateString() : localTime(t, true),
+        priceFormatter: (p: number) => PRICE_FORMAT[modeRef.current].formatter(p),
+      },
       crosshair: { mode: 0 },
     });
     barsRef.current = chart.addSeries(CandlestickSeries, {
@@ -83,7 +104,7 @@ export function PriceChart({ tokenId, interval }: { tokenId: string; interval: C
       wickUpColor: UP,
       wickDownColor: DOWN,
       borderVisible: false,
-      priceFormat: { type: "custom", formatter: (p: number) => formatUsd(p / SOL_USD), minMove: 0.01 },
+      priceFormat: PRICE_FORMAT[modeRef.current],
     });
     volumeRef.current = chart.addSeries(HistogramSeries, {
       priceScaleId: "",
@@ -104,11 +125,15 @@ export function PriceChart({ tokenId, interval }: { tokenId: string; interval: C
     const volume = volumeRef.current!;
     bars.setData([]);
     volume.setData([]);
+    rawRef.current = [];
     let lastTime = 0;
     const apply = (c: RawCandle) => {
       if (c.time < lastTime) return;
       lastTime = c.time;
-      bars.update(toBar(c));
+      const raw = rawRef.current;
+      if (raw.at(-1)?.time === c.time) raw[raw.length - 1] = c;
+      else raw.push(c);
+      bars.update(toBar(c, modeRef.current));
       volume.update(toVolume(c));
     };
 
@@ -144,7 +169,8 @@ export function PriceChart({ tokenId, interval }: { tokenId: string; interval: C
       .catch(() => [] as RawCandle[])
       .then((history) => {
         if (cancelled) return;
-        bars.setData(history.map(toBar));
+        rawRef.current = [...history];
+        bars.setData(history.map((c) => toBar(c, modeRef.current)));
         volume.setData(history.map(toVolume));
         lastTime = history.at(-1)?.time ?? 0;
         loaded = true;
@@ -157,6 +183,14 @@ export function PriceChart({ tokenId, interval }: { tokenId: string; interval: C
       socket.off("token:candle", onCandle);
     };
   }, [tokenId, interval]);
+
+  // Switching between market cap and price only rescales: redraw what's loaded, no refetch.
+  useEffect(() => {
+    const bars = barsRef.current;
+    if (!bars) return;
+    bars.applyOptions({ priceFormat: PRICE_FORMAT[mode] });
+    bars.setData(rawRef.current.map((c) => toBar(c, mode)));
+  }, [mode]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

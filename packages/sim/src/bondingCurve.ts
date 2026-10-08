@@ -51,16 +51,20 @@ export const GRADUATION_MULTIPLE = GRADUATION_PRICE / LAUNCH_PRICE;
 
 const feeOn = (sol: number) => (sol * CURVE.feeBps) / 10_000;
 
-/** Buy with up to `solIn` SOL. Fills partially if the curve runs out of tokens. */
-export function quoteBuy(state: CurveState, solIn: number): Fill {
+/**
+ * Buy with up to `solIn` SOL. Fills partially if the curve runs out of tokens, unless `uncapped`:
+ * then tokensLeft may go negative (the house token, which never graduates, has no end to its curve).
+ * tokensLeft still counts what's been bought, so sells stay capped at tokensSold.
+ */
+export function quoteBuy(state: CurveState, solIn: number, uncapped = false): Fill {
   if (!(solIn > 0)) throw new Error("solIn must be positive");
-  if (state.tokensLeft <= 0) throw new Error("curve is complete");
+  if (!uncapped && state.tokensLeft <= 0) throw new Error("curve is complete");
 
   const k = state.virtualSol * state.virtualTokens;
   // Fee is charged on top of what goes into the curve, so solToCurve + fee = solIn.
   let solToCurve = solIn / (1 + CURVE.feeBps / 10_000);
   let tokenAmount = state.virtualTokens - k / (state.virtualSol + solToCurve);
-  if (tokenAmount > state.tokensLeft) {
+  if (!uncapped && tokenAmount > state.tokensLeft) {
     tokenAmount = state.tokensLeft;
     solToCurve = k / (state.virtualTokens - tokenAmount) - state.virtualSol;
   }
@@ -125,11 +129,17 @@ export interface TradeQuote {
  * Fill against a curve whose price is scaled by the token's fate multiple
  * (price = multiple × spotPrice(curve)). SOL is converted to curve units by dividing
  * by the multiple, so a round trip at a constant multiple only loses fees.
- * `amount` is SOL for buys and tokens for sells.
+ * `amount` is SOL for buys and tokens for sells. `uncapped` lifts the curve's end (see quoteBuy).
  */
-export function quoteTrade(curve: CurveState, multiple: number, side: TradeSide, amount: number): TradeQuote {
+export function quoteTrade(
+  curve: CurveState,
+  multiple: number,
+  side: TradeSide,
+  amount: number,
+  options: { uncapped?: boolean } = {},
+): TradeQuote {
   if (!(multiple > 0)) throw new Error("multiple must be positive");
-  const fill = side === "buy" ? quoteBuy(curve, amount / multiple) : quoteSell(curve, amount);
+  const fill = side === "buy" ? quoteBuy(curve, amount / multiple, options.uncapped) : quoteSell(curve, amount);
   const solAmount = fill.solAmount * multiple;
   return {
     side,

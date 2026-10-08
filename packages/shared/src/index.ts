@@ -52,8 +52,8 @@ export interface PriceTick {
   volume5m: number;
 }
 
-/** Candle intervals in seconds. 1s candles aren't stored; clients build them from ticks. */
-export const CANDLE_INTERVALS = [5, 60] as const;
+/** Candle intervals in seconds: 5s, 1m, 5m, 1d. 1s candles aren't stored; clients build them from ticks. */
+export const CANDLE_INTERVALS = [5, 60, 300, 86400] as const;
 export type CandleInterval = (typeof CANDLE_INTERVALS)[number];
 
 export interface Candle {

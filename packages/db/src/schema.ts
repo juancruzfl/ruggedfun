@@ -1,10 +1,10 @@
 import {
   doublePrecision,
   index,
+  integer,
   pgEnum,
   pgTable,
   primaryKey,
-  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -84,8 +84,8 @@ export const candles = pgTable(
     tokenId: uuid("token_id")
       .notNull()
       .references(() => tokens.id, { onDelete: "cascade" }),
-    /** Seconds per candle. */
-    interval: smallint("interval").notNull(),
+    /** Seconds per candle (up to 86400 for 1d, past smallint's range). */
+    interval: integer("interval").notNull(),
     ts: timestamp("ts", { withTimezone: true }).notNull(),
     open: doublePrecision("open").notNull(),
     high: doublePrecision("high").notNull(),
