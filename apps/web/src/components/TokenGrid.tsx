@@ -1,6 +1,7 @@
 "use client";
 
 import { isHouseToken, type MarketToken, type TokenSummary } from "@ruggedfun/shared";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useMarket } from "@/lib/marketStore";
@@ -10,13 +11,19 @@ const TABS = [
   { id: "new", label: "🆕 New" },
   { id: "graduating", label: "🎓 About to graduate" },
   { id: "top", label: "👑 Top market cap" },
+  { id: "players", label: "👤 Player launches" },
   { id: "rugged", label: "💀 Rugged" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 
 const MAX_CARDS = 60;
 
-function selectTab(tokens: Record<string, MarketToken>, graveyard: TokenSummary[], tab: Tab): (MarketToken | TokenSummary)[] {
+function selectTab(
+  tokens: Record<string, MarketToken>,
+  graveyard: TokenSummary[],
+  playerHistory: TokenSummary[],
+  tab: Tab,
+): (MarketToken | TokenSummary)[] {
   const all = Object.values(tokens);
   switch (tab) {
     case "new":
@@ -32,6 +39,14 @@ function selectTab(tokens: Record<string, MarketToken>, graveyard: TokenSummary[
         .filter((t) => t.status === "live" || t.status === "graduated")
         .sort((a, b) => b.marketCap - a.marketCap)
         .slice(0, MAX_CARDS);
+    case "players": {
+      // Live launches from the market, then ones that rugged here, then the stored history for the rest.
+      const seen = new Set<string>();
+      return [...all.filter((t) => t.byPlayer), ...graveyard.filter((t) => t.byPlayer), ...playerHistory]
+        .filter((t) => !seen.has(t.id) && seen.add(t.id))
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, MAX_CARDS);
+    }
     case "rugged": {
       // Tokens still twitching after the rug come first, then the graveyard.
       const twitching = all.filter((t) => t.status === "rugged").sort((a, b) => b.createdAt - a.createdAt);
@@ -44,7 +59,17 @@ function selectTab(tokens: Record<string, MarketToken>, graveyard: TokenSummary[
 export function TokenGrid() {
   const [tab, setTab] = useState<Tab>("new");
   const loaded = useMarket((s) => s.loaded);
-  const tokens = useMarket(useShallow((s) => selectTab(s.tokens, s.graveyard, tab)));
+  // Player launches that stopped trading only exist in the database; refetched each time the tab opens.
+  const [playerHistory, setPlayerHistory] = useState<TokenSummary[]>([]);
+  const tokens = useMarket(useShallow((s) => selectTab(s.tokens, s.graveyard, playerHistory, tab)));
+
+  useEffect(() => {
+    if (tab !== "players") return;
+    fetch("/api/tokens?tab=players")
+      .then((res) => (res.ok ? (res.json() as Promise<TokenSummary[]>) : []))
+      .then(setPlayerHistory)
+      .catch(() => {});
+  }, [tab]);
 
   // The graveyard's history lives in the database; live rugs are added as they happen.
   const [graveyardLoaded, setGraveyardLoaded] = useState(false);
@@ -92,7 +117,18 @@ export function TokenGrid() {
       </div>
       {loaded && tokens.length === 0 && (
         <p className="py-12 text-center text-muted">
-          {tab === "rugged" ? "No rugs yet. Give it a minute." : "Nothing here yet."}
+          {tab === "rugged" ? (
+            "No rugs yet. Give it a minute."
+          ) : tab === "players" ? (
+            <>
+              No player has launched a token yet.{" "}
+              <Link href="/launch" className="font-semibold text-pump hover:underline">
+                Launch yours →
+              </Link>
+            </>
+          ) : (
+            "Nothing here yet."
+          )}
         </p>
       )}
     </section>
