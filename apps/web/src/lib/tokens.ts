@@ -2,7 +2,7 @@ import "server-only";
 import { candles, tokens, trades, users } from "@ruggedfun/db";
 import type { CandleInterval, TokenSummary, TradeEvent } from "@ruggedfun/shared";
 import { bondingProgress, CURVE } from "@ruggedfun/sim";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "./db";
 
 // Explicit column list: `seed` and `fate` must never reach the browser.
@@ -68,6 +68,12 @@ export async function recentRugged(limit = 60): Promise<TokenSummary[]> {
     .where(eq(tokens.status, "rugged"))
     .orderBy(sql`${tokens.endedAt} desc nulls first`)
     .limit(limit);
+  return rows.map(toSummary);
+}
+
+/** Tokens players launched, newest first, whether they're still trading or not. */
+export async function recentPlayerLaunches(limit = 60): Promise<TokenSummary[]> {
+  const rows = await selectSummaries().where(isNotNull(tokens.creatorUserId)).orderBy(desc(tokens.createdAt)).limit(limit);
   return rows.map(toSummary);
 }
 

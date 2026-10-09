@@ -32,9 +32,10 @@ export function HouseTokenHero() {
     // The border fades green to red, the logo's two halves, like the top bar's bottom edge.
     <section
       aria-labelledby="house-title"
-      className="rounded-2xl bg-linear-to-r from-pump/60 via-line to-rug/60 p-px shadow-lg shadow-pump/5"
+      // A size container: the card lays out by its own width, since it shares a row with the players card.
+      className="@container rounded-2xl bg-linear-to-r from-pump/60 via-line to-rug/60 p-px shadow-lg shadow-pump/5"
     >
-      <div className="grid gap-5 rounded-[calc(1rem-1px)] bg-panel bg-linear-to-br from-pump/[0.08] via-panel to-rug/[0.06] p-4 sm:p-5 lg:grid-cols-[1fr_minmax(0,22rem)] lg:items-center">
+      <div className="grid h-full gap-5 rounded-[calc(1rem-1px)] bg-panel bg-linear-to-br from-pump/[0.08] via-panel to-rug/[0.06] p-4 @lg:p-5 @4xl:grid-cols-[1fr_minmax(0,22rem)] @4xl:items-center">
         <div className="min-w-0">
           <div className="flex items-center gap-4">
             <TokenAvatar src={token.imageUrl} alt="" size={72} />
@@ -51,8 +52,8 @@ export function HouseTokenHero() {
             </div>
           </div>
 
-          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-            <div className="col-span-2 sm:col-span-1">
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 @lg:grid-cols-4">
+            <div className="col-span-2 @lg:col-span-1">
               <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">Market cap</dt>
               <dd className="mt-0.5 flex items-baseline gap-2">
                 <span
