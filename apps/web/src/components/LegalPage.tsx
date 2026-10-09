@@ -23,5 +23,5 @@ export function SimulationNotice() {
   );
 }
 
-export const LEGAL_UPDATED = "October 6, 2026";
+export const LEGAL_UPDATED = "October 9, 2026";
 export const CONTACT_URL = "https://github.com/juancruzfl/ruggedfun/issues";
