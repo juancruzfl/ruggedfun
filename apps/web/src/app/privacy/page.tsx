@@ -22,7 +22,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Game activity</strong>: your play-money balance, positions, trades and net-worth history, used to run
-          the game and the leaderboards. Trades are shown publicly with your username.
+          the game and the leaderboards, and to decide eligibility for any promotions (see the{" "}
+          <Link href="/terms">Terms of Use</Link>). Trades are shown publicly with your username.
         </li>
         <li>
           <strong>A login cookie</strong> (<code>rf_session</code>): a random token that keeps you signed in. We store

@@ -26,7 +26,8 @@ export default function TermsPage() {
         <li>
           &ldquo;SOL&rdquo;, wallet balances, positions, profits and losses on the Site are{" "}
           <strong>play money with no monetary value</strong>. They cannot be purchased, sold, transferred, withdrawn,
-          redeemed or exchanged for money, cryptocurrency, goods or services, and we will never offer to do so.
+          redeemed or exchanged for money, cryptocurrency, goods or services, and we will never offer to do so. Any
+          promotion we choose to run (see section 5b) is a separate, free gift from us, not a redemption of play money.
         </li>
         <li>
           No real cryptocurrency, blockchain, wallet or exchange is used or connected. Wallet addresses shown are fake.
@@ -49,7 +50,9 @@ export default function TermsPage() {
       <h2>3. Eligibility</h2>
       <p>
         You must be at least 18 years old to use the Site. Because the Site imitates speculative trading, don&apos;t use
-        it if doing so could encourage harmful gambling or trading habits.
+        it if doing so could encourage harmful gambling or trading habits. You also confirm that you are not located
+        in, or a resident of, a country or region subject to comprehensive U.S. sanctions, and that you are not on any
+        U.S. or other applicable sanctions or restricted-party list.
       </p>
 
       <h2>4. Your account</h2>
@@ -92,6 +95,34 @@ export default function TermsPage() {
         </li>
       </ul>
 
+      <h2>5b. Promotions</h2>
+      <ul>
+        <li>
+          We may, but are not obliged to, run promotions, rewards or giveaways for some or all players. Using the Site
+          does not entitle you to any promotion, and nothing you do in the game is given in exchange for one.
+        </li>
+        <li>
+          We decide, in our sole discretion, whether to run a promotion, who is eligible, and how much each person
+          receives. We may set eligibility criteria at any time, including after the activity they cover, and we are
+          not required to announce them in advance. Our decisions are final.
+        </li>
+        <li>
+          We may exclude any account or person, including for bots, multiple accounts, exploiting bugs, breaking these
+          Terms, or being located in a restricted country or region. People who run or help run the Site may be
+          excluded or treated separately, as we disclose at the time.
+        </li>
+        <li>
+          A promotion may come with its own terms (for example, how to claim it, deadlines and identity or sanctions
+          checks). Those terms apply in addition to these Terms. Promotions are void where prohibited.
+        </li>
+        <li>
+          Anything given in a promotion has <strong>no promised or expected value</strong>. We make no statement that
+          it will be worth anything, be tradable, or keep any value, and we do not control any third-party market,
+          exchange or service where it may appear. You are responsible for any taxes and for following the laws that
+          apply to you.
+        </li>
+      </ul>
+
       <h2>6. No warranties</h2>
       <p>
         The Site is provided <strong>&ldquo;as is&rdquo; and &ldquo;as available&rdquo;</strong>, without warranties of
@@ -105,7 +136,8 @@ export default function TermsPage() {
         To the fullest extent permitted by law, the operator of the Site will not be liable for any indirect,
         incidental, special, consequential or punitive damages, or for any loss of profits, data, goodwill or other
         intangible losses, arising from or related to your use of (or inability to use) the Site, including any decision
-        you make, on or off the Site, based on it. Because play money has no value, losing it is not a loss of anything
+        you make, on or off the Site, based on it, and any promotion, including anything received through one or its
+        value, use or loss, and any third-party wallet, market or service. Because play money has no value, losing it is not a loss of anything
         of value. In any case, the operator&apos;s total liability for all claims relating to the Site is limited to
         zero U.S. dollars (US$0), or the lowest amount allowed by law.
       </p>
