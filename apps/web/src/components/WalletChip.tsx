@@ -97,7 +97,15 @@ export function WalletChip() {
             {shortAddress(me.wallet.address)} {copied ? "✓ copied" : "⧉"}
           </button>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-bg p-3">
+          <Link
+            href={`/u/${me.user.username}`}
+            onClick={() => setOpen(false)}
+            className="mt-3 flex items-center justify-between rounded-lg border border-pump/30 bg-pump/10 px-3 py-2 text-sm font-semibold text-pump transition hover:bg-pump/15"
+          >
+            Your profile &amp; PnL card <span aria-hidden>→</span>
+          </Link>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-bg p-3">
             <div>
               <div className="text-xs uppercase tracking-wide text-muted">Balance</div>
               <div className="mt-0.5 font-mono text-xl font-bold text-pump">{formatSol(me.wallet.solBalance)}</div>

@@ -20,6 +20,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
+  // Link previews (like a profile's PnL card) need absolute image URLs. SITE_URL overrides it (e.g. staging).
+  metadataBase: new URL(process.env.SITE_URL ?? "https://ruggedfun.xyz"),
   title: { default: "ruggedfun", template: "%s · ruggedfun" },
   description: "A play-money memecoin launchpad. Everything rugs. Nothing is real.",
 };
