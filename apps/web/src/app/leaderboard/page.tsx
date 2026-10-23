@@ -101,7 +101,9 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
                     <span className="text-2xl" aria-label={`Rank ${row.rank}`}>
                       {tab === "shame" ? "💀" : MEDALS[i]}
                     </span>
-                    <span className="truncate font-semibold">{row.username}</span>
+                    <Link href={`/u/${row.username}`} className="truncate font-semibold hover:underline">
+                      {row.username}
+                    </Link>
                     {isMe && <span className="rounded bg-pump/15 px-1 text-[10px] font-bold text-pump">YOU</span>}
                   </div>
                   <div className="mt-2 font-mono text-xl font-bold">{value}</div>
@@ -189,7 +191,9 @@ function Row({ data, row, isMe, now }: { data: LeaderboardRows; row: AnyRow; isM
   const player = (
     <td className={`${cell} max-w-48`}>
       <span className="inline-flex min-w-0 items-center gap-1.5">
-        <span className={`truncate ${isMe ? "font-semibold text-pump" : ""}`}>{row.username}</span>
+        <Link href={`/u/${row.username}`} className={`truncate hover:underline ${isMe ? "font-semibold text-pump" : ""}`}>
+          {row.username}
+        </Link>
         {isMe && <span className="shrink-0 rounded bg-pump/15 px-1 text-[10px] font-bold text-pump">YOU</span>}
       </span>
     </td>

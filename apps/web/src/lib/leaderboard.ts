@@ -73,7 +73,7 @@ const rank = <T>(rows: T[]) => rows.map((row, i) => ({ ...row, rank: i + 1 }));
  * would sell for right now. Tokens that stopped trading keep their last price.
  */
 const sellable = sql`least(p.token_amount, ${CURVE.curveTokens} - t.tokens_left)`;
-const positionValueSql = sql`case
+export const positionValueSql = sql`case
   when t.ended_at is null then greatest(0, t.price * t.virtual_tokens * ${sellable} / (t.virtual_tokens + ${sellable}))
                                * ${1 - CURVE.feeBps / 10_000}
   else p.token_amount * t.price
